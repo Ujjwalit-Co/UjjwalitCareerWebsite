@@ -1,0 +1,6 @@
+﻿legacy-UJJWALIT_BLOGS
+legacy-UJJWALIT_BLOGS/**
+.env.local
+.next
+node_modules
+*.log

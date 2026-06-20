@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+﻿# Ujjwalit Developers Program Platform
 
-## Getting Started
+Next.js 16 app for the Ujjwalit Developers Program, internship applications, event registrations, admin-managed opportunities, document generation, and verifiable certificates.
 
-First, run the development server:
+The legacy EJS app in `legacy-UJJWALIT_BLOGS/` is reference-only. Vercel deployment excludes it through `.vercelignore`; do not import runtime code from that folder.
+
+## Stack
+
+- Next.js 16 App Router, React 19, TypeScript
+- Tailwind CSS v4, Framer Motion, GSAP dependency available, Lucide icons
+- Supabase Postgres, Auth, Storage, Row Level Security
+- PDF and QR generation with `pdf-lib` and `qrcode`
+- Resend for email workflows
+
+## Main Routes
+
+- `/careers` - public Ujjwalit Developers Program site
+- `/careers/apply` - student application/registration form
+- `/verify` and `/verify/[certificateId]` - certificate verification
+- `/admin/login` and `/admin/dashboard` - admin console
+- `/admin/dashboard/opportunities` - create, edit, open, close, and archive internships/events/projects
+
+Subdomain routing is handled by `middleware.ts`:
+
+- `careers.ujjwalit.co.in` -> `/careers`
+- `verify.ujjwalit.co.in` -> `/verify`
+- `admin.ujjwalit.co.in` -> `/admin`
+
+## Local Setup
 
 ```bash
+npm install
+cp .env.local.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill `.env.local` with:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+RESEND_API_KEY=
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Local subdomain testing:
 
-## Learn More
+- `http://localhost:3000/?subdomain=careers`
+- `http://localhost:3000/?subdomain=verify`
+- `http://localhost:3000/?subdomain=admin`
 
-To learn more about Next.js, take a look at the following resources:
+## Database Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Run [supabase/schema.sql](supabase/schema.sql) in Supabase SQL Editor after backing up anything important. The schema creates:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `opportunities` for admin-customizable internships, projects, and events
+- `applications`, `students`, `documents`, `certificates`, `certificate_templates`
+- Storage buckets for resumes, letters, certificates, templates, and opportunity assets
+- RLS policies for public applications, public verification, and authenticated admin management
 
-## Deploy on Vercel
+Create admin users from Supabase Dashboard -> Authentication -> Users.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Public opportunity cards come from `opportunities` where `status = open` and `visibility = public`.
+- If Supabase is unavailable or the schema has not been run yet, `lib/opportunities.shared.ts` provides safe fallback content.
+- Shared client-safe opportunity helpers live in `lib/opportunities.shared.ts`; server fetching lives in `lib/opportunities.ts`.
+- Certificate verification depends on `certificate_id`, `verification_hash`, `verification_url`, and optional QR/PDF URLs.
+- Keep UI assets used by the Next app in `public/`, not in `legacy-UJJWALIT_BLOGS/`.
+
+## Quality Checks
+
+```bash
+npm run lint
+npm run build
+```
+
+Known framework warnings to watch:
+
+- Next.js 16 warns that `middleware.ts` should eventually be migrated to `proxy.ts`.
+- A non-standard `NODE_ENV` in the shell can trigger a Next.js warning; deployment should use Vercel defaults.
