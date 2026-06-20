@@ -94,3 +94,17 @@ export function getCompletionEmailHtml(name: string, track: string, certId: stri
     </div>
   `;
 }
+
+export function getApplyReceivedEmailHtml(name: string, programTitle: string): string {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1e293b;">
+      <h2 style="color: #0f172a; border-bottom: 2px solid #1A8BA6; padding-bottom: 10px;">Application Received</h2>
+      <p>Dear <strong>${name}</strong>,</p>
+      <p>Thank you for applying to the <strong>${programTitle}</strong> program at <strong>Ujjwalit Technologies</strong>.</p>
+      <p>We have successfully received your application. Our team is currently reviewing your profile and will get back to you with the next steps shortly.</p>
+      <br />
+      <p>Warm regards,</p>
+      <p><strong>Ujjwalit Technologies Team</strong><br /><a href="https://ujjwalit.co.in">ujjwalit.co.in</a></p>
+    </div>
+  `;
+}

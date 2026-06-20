@@ -5,6 +5,10 @@ import { ArrowLeft, ArrowRight, Award, Calendar, CheckCircle2, Clock, MapPin, Sh
 import { getOpportunityBySlug, getOpenOpportunities } from '@/lib/opportunities';
 import { formatFee } from '@/lib/opportunities.shared';
 import { ApplicationForm } from '@/components/careers/ApplicationForm';
+import { PixelCanvas } from '@/components/ui/pixel-canvas';
+import { CpuArchitecture } from '@/components/ui/cpu-architecture';
+
+export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -28,15 +32,55 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
   ];
 
   return (
-    <div className="w-full border-t border-brand-border bg-brand-bg px-4 pt-28 pb-14 text-[#F5F5F5] sm:px-6 md:pt-32 lg:px-8">
-      <div className="mx-auto max-w-4xl">
+    <div className="relative w-full border-t border-brand-border bg-brand-bg px-4 pt-28 pb-14 text-[#F5F5F5] sm:px-6 md:pt-32 lg:px-8">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#242424_1px,transparent_1px),linear-gradient(to_bottom,#242424_1px,transparent_1px)] bg-[size:44px_44px] opacity-20" />
+      <div className="absolute inset-0 z-0 opacity-[0.07] pointer-events-none">
+        <PixelCanvas
+          colors={['#E8822A', '#1A8BA6', '#1e1e1e']}
+          gap={12}
+          speed={20}
+          noFocus
+        />
+      </div>
+      <div className="relative z-10 mx-auto max-w-4xl">
         <Link href="/careers" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#A1A1AA] transition-colors hover:text-[#F5F5F5]">
           <ArrowLeft size={16} /> Back to programs
         </Link>
 
+        <div className="absolute top-10 right-0 w-32 h-32 opacity-[0.06] pointer-events-none hidden md:block">
+          <CpuArchitecture text="BUILD" animateLines animateText animateMarkers width="100%" height="100%" />
+        </div>
+
         <div className="space-y-12">
+          {/* Centered Application Form Section */}
+          <div className="pt-2">
+            <div className="mx-auto max-w-2xl text-center mb-8">
+              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-orange">Application</span>
+              <h3 className="mt-2 text-3xl font-extrabold text-[#F5F5F5]">Apply for {opportunity.title}</h3>
+              <p className="mt-2 text-sm leading-5 text-[#A1A1AA]">Four focused steps. Review happens before submission.</p>
+            </div>
+            <div className="mx-auto max-w-2xl">
+              <Suspense fallback={<div className="flex min-h-[300px] items-center justify-center rounded-lg border border-brand-border bg-brand-bg text-sm text-[#A1A1AA]">Loading application form...</div>}>
+                <ApplicationForm opportunities={allOpportunities} defaultSlug={opportunity.slug} />
+              </Suspense>
+            </div>
+          </div>
+
+          {/* Onboarding Steps Below Form */}
+          <div className="mx-auto max-w-2xl rounded-lg border border-brand-border bg-brand-secondary/40 p-5">
+            <h4 className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A1A1AA]">What happens next</h4>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 text-sm text-[#A1A1AA]">
+              {['Application review', 'Acceptance decision', 'Payment verification', 'Batch onboarding'].map((item, index) => (
+                <div key={item} className="flex gap-3 items-center">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-brand-border bg-brand-secondary font-mono text-[11px] text-brand-blue">{index + 1}</span>
+                  <span className="font-semibold text-[#F5F5F5]">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Internship Details Article */}
-          <article className="space-y-8">
+          <article className="space-y-8 border-t border-brand-border pt-12">
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-md border border-brand-border bg-brand-secondary px-3 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-[#A1A1AA]">{opportunity.type}</span>
@@ -65,7 +109,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
               <section className="space-y-4">
                 <h2 className="text-xl font-extrabold">Technical tracks & skills covered</h2>
                 <ul className="grid gap-3 sm:grid-cols-2">
-                  {opportunity.features.slice(0, 6).map((feature) => (
+                  {opportunity.features.slice(0, 6).map((feature: string) => (
                     <li key={feature} className="flex items-start gap-3 rounded-lg border border-brand-border bg-brand-secondary p-4">
                       <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-blue" />
                       <span className="text-sm font-semibold leading-6 text-[#F5F5F5]">{feature}</span>
@@ -79,7 +123,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
               <section className="rounded-lg border border-brand-border bg-brand-secondary p-5 md:p-6">
                 <h2 className="text-xl font-extrabold">Verified outcomes</h2>
                 <ul className="mt-4 space-y-3">
-                  {opportunity.outcomes.map((outcome) => (
+                  {opportunity.outcomes.map((outcome: string) => (
                     <li key={outcome} className="flex gap-3 text-sm font-semibold leading-6 text-[#A1A1AA]">
                       <ShieldCheck size={17} className="mt-0.5 shrink-0 text-brand-orange" />
                       {outcome}
@@ -91,7 +135,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 
             {opportunity.project_links?.length > 0 && (
               <div className="flex flex-wrap gap-2 border-t border-brand-border pt-6">
-                {opportunity.project_links.map((link) => (
+                {opportunity.project_links.map((link: { url: string; label: string; }) => (
                   <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-xs font-bold text-[#A1A1AA] transition-colors hover:border-brand-blue hover:text-[#F5F5F5]">
                     {link.label} <ArrowRight size={12} className="rotate-[-45deg]" />
                   </a>
@@ -99,36 +143,8 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
               </div>
             )}
           </article>
-
-          {/* Centered Application Form Section */}
-          <div className="border-t border-brand-border pt-12">
-            <div className="mx-auto max-w-2xl text-center mb-8">
-              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-orange">Application</span>
-              <h3 className="mt-2 text-3xl font-extrabold text-[#F5F5F5]">Begin your application</h3>
-              <p className="mt-2 text-sm leading-5 text-[#A1A1AA]">Four focused steps. Review happens before submission.</p>
-            </div>
-            <div className="mx-auto max-w-2xl">
-              <Suspense fallback={<div className="flex min-h-[300px] items-center justify-center rounded-lg border border-brand-border bg-brand-bg text-sm text-[#A1A1AA]">Loading application form...</div>}>
-                <ApplicationForm opportunities={allOpportunities} defaultSlug={opportunity.slug} />
-              </Suspense>
-            </div>
-          </div>
-
-          {/* Onboarding Steps Below Form */}
-          <div className="mx-auto max-w-2xl rounded-lg border border-brand-border bg-brand-secondary/40 p-5">
-            <h4 className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A1A1AA]">What happens next</h4>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 text-sm text-[#A1A1AA]">
-              {['Application review', 'Acceptance decision', 'Payment verification', 'Batch onboarding'].map((item, index) => (
-                <div key={item} className="flex gap-3 items-center">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-brand-border bg-brand-secondary font-mono text-[11px] text-brand-blue">{index + 1}</span>
-                  <span className="font-semibold text-[#F5F5F5]">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
 }
-

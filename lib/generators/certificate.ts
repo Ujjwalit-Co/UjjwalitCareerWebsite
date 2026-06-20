@@ -44,10 +44,10 @@ export async function generateCertificatePDF({
   const pageHeight = 595.28;
   const page = pdfDoc.addPage([pageWidth, pageHeight]);
 
-  // Screen designer coordinates are relative to e.g. 1122x793 (standard ratio).
+  // Screen designer coordinates are relative to the canvas size.
   // We need to scale designer coordinates to A4 points.
-  const designerWidth = 1122;
-  const designerHeight = 793;
+  const designerWidth = 800;
+  const designerHeight = 566;
   const scaleX = pageWidth / designerWidth;
   const scaleY = pageHeight / designerHeight;
 
@@ -231,7 +231,9 @@ export async function generateCertificatePDF({
     // Calculate final PDF coordinates
     let x = field.x * scaleX;
     // PDF coordinates start at bottom-left, but designer starts at top-left.
-    const y = pageHeight - (field.y * scaleY);
+    // pdf-lib uses a bottom-left origin and text is drawn from its baseline.
+    // We subtract the text size so the top of the text aligns with the designer's y-coordinate.
+    const y = pageHeight - (field.y * scaleY) - size;
 
     // Adjust x coordinate for text alignment if centered
     if (field.textAlign === 'center') {

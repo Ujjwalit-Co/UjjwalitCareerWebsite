@@ -156,6 +156,22 @@ export const ApplicationForm = ({
       });
 
       if (dbError) throw new Error(`Database submission failed: ${dbError.message}`);
+      
+      // Dispatch confirmation email
+      try {
+        await fetch('/api/email/apply-received', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.fullName.trim(),
+            email: formData.email.trim(),
+            programTitle: selectedOpportunity.title
+          })
+        });
+      } catch (emailErr) {
+        console.error('Failed to send confirmation email', emailErr);
+      }
+
       toast.success('Application submitted successfully');
       setStep(5);
     } catch (error: any) {

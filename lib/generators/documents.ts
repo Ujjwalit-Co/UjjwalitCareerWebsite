@@ -9,6 +9,8 @@ interface LetterParams {
   endDate: string;
   documentType: 'acceptance' | 'onboarding' | 'completion' | 'recommendation';
   dateStr: string;
+  customText?: string;
+  backgroundUrl?: string;
 }
 
 /**
@@ -23,6 +25,8 @@ export async function generateLetterPDF({
   endDate,
   documentType,
   dateStr,
+  customText,
+  backgroundUrl,
 }: LetterParams): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   
@@ -30,6 +34,29 @@ export async function generateLetterPDF({
   const pageWidth = 595.28;
   const pageHeight = 841.89;
   const page = pdfDoc.addPage([pageWidth, pageHeight]);
+
+  // Draw background image if provided
+  if (backgroundUrl) {
+    try {
+      const bgResponse = await fetch(backgroundUrl);
+      const bgBytes = await bgResponse.arrayBuffer();
+      let bgImage;
+      if (backgroundUrl.match(/\.png$/i)) {
+        bgImage = await pdfDoc.embedPng(bgBytes);
+      } else {
+        bgImage = await pdfDoc.embedJpg(bgBytes);
+      }
+      page.drawImage(bgImage, {
+        x: 0,
+        y: 0,
+        width: pageWidth,
+        height: pageHeight,
+        opacity: 0.15,
+      });
+    } catch (e) {
+      console.warn('Failed to load background image, proceeding without it');
+    }
+  }
 
   const fontHelvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontHelveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -132,7 +159,23 @@ export async function generateLetterPDF({
     }
   };
 
-  if (documentType === 'acceptance') {
+  if (customText) {
+    const lines = customText.split('\n');
+    for (const line of lines) {
+      if (line.trim() === '') {
+        yPos -= 10;
+        continue;
+      }
+      const processedLine = line
+        .replace(/\{\{name\}\}/g, studentName)
+        .replace(/\{\{college\}\}/g, college)
+        .replace(/\{\{program\}\}/g, programName)
+        .replace(/\{\{startDate\}\}/g, startDate)
+        .replace(/\{\{endDate\}\}/g, endDate);
+      writeParagraph(processedLine);
+      yPos -= 10;
+    }
+  } else if (documentType === 'acceptance') {
     writeParagraph(`Dear ${studentName},`);
     yPos -= 10;
     writeParagraph(`Following your application and review process, we are pleased to offer you an internship position as a Software Engineering Intern specializing in ${programName} with Ujjwalit Technologies.`);

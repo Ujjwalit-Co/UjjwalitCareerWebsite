@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     // but we can double check or decode token if needed.
     // For simplicity, since it's admin role, we assume authorization is checked or we verify session.
     
-    const { studentId, documentType } = await request.json();
+    const { studentId, documentType, customText, backgroundUrl } = await request.json();
 
     if (!studentId || !documentType) {
       return NextResponse.json(
@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
         month: 'long',
         day: 'numeric',
       }),
+      customText,
+      backgroundUrl,
     });
 
     // 3. Upload PDF to Supabase Storage 'letters' bucket

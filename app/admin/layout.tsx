@@ -9,13 +9,13 @@ import {
   LayoutDashboard,
   FileSpreadsheet,
   Users,
-  CreditCard,
   FileText,
   Award,
   BriefcaseBusiness,
   LogOut,
   Menu,
   X,
+  Mail,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ToastProvider } from '@/components/ui/toast-provider';
@@ -62,7 +62,7 @@ export default function AdminLayout({
     { name: 'Applications', href: '/admin/dashboard/applications', icon: <FileSpreadsheet size={18} /> },
     { name: 'Opportunities', href: '/admin/dashboard/opportunities', icon: <BriefcaseBusiness size={18} /> },
     { name: 'Students', href: '/admin/dashboard/students', icon: <Users size={18} /> },
-    { name: 'Payments', href: '/admin/dashboard/payments', icon: <CreditCard size={18} /> },
+    { name: 'Email', href: '/admin/dashboard/email', icon: <Mail size={18} /> },
     { name: 'Documents', href: '/admin/dashboard/documents', icon: <FileText size={18} /> },
     { name: 'Certificates', href: '/admin/dashboard/certificates', icon: <Award size={18} /> },
   ];

@@ -6,6 +6,8 @@ import { EventsSection } from '@/components/careers/EventsSection';
 import { TransparencySection } from '@/components/careers/TransparencySection';
 import { getOpenOpportunities } from '@/lib/opportunities';
 
+export const dynamic = 'force-dynamic';
+
 export default async function CareersLandingPage() {
   const opportunities = await getOpenOpportunities();
   const internships = opportunities.filter((item) => item.type === 'internship' || item.type === 'project');

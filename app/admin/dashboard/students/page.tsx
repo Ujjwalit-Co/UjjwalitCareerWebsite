@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +18,9 @@ import {
   CheckCircle,
   XCircle,
   Award,
+  Mail,
+  FileText,
+  ShieldCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -29,6 +32,7 @@ export default function StudentsManagement() {
   // Edit Modal State
   const [editingStudent, setEditingStudent] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -101,6 +105,25 @@ export default function StudentsManagement() {
       toast.error(err.message || 'Failed to update student');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSendEmail = async (type: string) => {
+    if (!editingStudent) return;
+    setSendingEmail(type);
+    try {
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: editingStudent.id, type }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Email failed');
+      toast.success(`Email dispatched: ${type}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send email');
+    } finally {
+      setSendingEmail(null);
     }
   };
 
@@ -321,6 +344,43 @@ export default function StudentsManagement() {
                     Checking this enables certificate generation for the student under Registry page.
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* Email Triggers Section */}
+            <div className="border-t border-slate-900 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 mb-3">Send Email</p>
+              <div className="grid grid-cols-1 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleSendEmail('acceptance')}
+                  disabled={!!sendingEmail}
+                  isLoading={sendingEmail === 'acceptance'}
+                  className="gap-2 justify-start text-brand-orange border-brand-orange/20 hover:bg-brand-orange/5"
+                >
+                  <Mail size={14} /> Send Offer / Acceptance Email
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleSendEmail('onboarding')}
+                  disabled={!!sendingEmail}
+                  isLoading={sendingEmail === 'onboarding'}
+                  className="gap-2 justify-start text-brand-blue border-brand-blue/20 hover:bg-brand-blue/5"
+                >
+                  <FileText size={14} /> Send Onboarding Email
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleSendEmail('completion')}
+                  disabled={!!sendingEmail}
+                  isLoading={sendingEmail === 'completion'}
+                  className="gap-2 justify-start text-green-400 border-green-500/20 hover:bg-green-500/5"
+                >
+                  <ShieldCheck size={14} /> Send Completion Email
+                </Button>
               </div>
             </div>
 

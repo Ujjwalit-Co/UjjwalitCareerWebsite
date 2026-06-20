@@ -3,6 +3,8 @@ import { Navbar } from '@/components/careers/Navbar';
 import { Footer } from '@/components/careers/Footer';
 import { ToastProvider } from '@/components/ui/toast-provider';
 
+export const dynamic = 'force-dynamic';
+
 export default function CareersLayout({
   children,
 }: {

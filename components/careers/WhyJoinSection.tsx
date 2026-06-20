@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
+import { Typewriter } from '@/components/ui/typewriter';
 
 const rows = [
   ['Watch Tutorials', 'Build Projects'],
@@ -17,7 +18,7 @@ export const WhyJoinSection = () => {
       <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <div className="space-y-4">
           <span className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-brand-orange">Why Join</span>
-          <h2 className="text-3xl font-extrabold tracking-tight text-[#F5F5F5] sm:text-4xl">A sharper path than passive learning.</h2>
+          <h2 className="text-3xl font-extrabold tracking-tight text-[#F5F5F5] sm:text-4xl"><Typewriter text="A sharper path than passive learning." as="span" /></h2>
           <p className="max-w-xl text-base font-medium leading-7 text-[#A1A1AA]">
             UDP is selective by design. The focus is on guided implementation, review habits, deployment discipline, and credentials that can be checked.
           </p>

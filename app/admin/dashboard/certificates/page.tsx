@@ -56,6 +56,7 @@ export default function CertificatesDashboard() {
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isGeneratingSample, setIsGeneratingSample] = useState(false);
 
   // Opportunities state for template-to-event association
   const [opportunities, setOpportunities] = useState<any[]>([]);
@@ -443,6 +444,44 @@ export default function CertificatesDashboard() {
     }
   };
 
+  const handleGenerateSample = async () => {
+    setIsGeneratingSample(true);
+    try {
+      const res = await fetch('/api/certificates/preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          templateBackgroundUrl: bgUrl || undefined,
+          templateFields: fields,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Sample generation failed');
+      }
+
+      const { pdfBase64 } = await res.json();
+      
+      // Open base64 pdf in new tab for preview
+      const pdfWindow = window.open();
+      if (pdfWindow) {
+        pdfWindow.document.write(
+          `<iframe width='100%' height='100%' src='data:application/pdf;base64,${pdfBase64}'></iframe>`
+        );
+      } else {
+        toast.error('Popup blocked. Please allow popups to view the sample PDF.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to generate sample PDF');
+    } finally {
+      setIsGeneratingSample(false);
+    }
+  };
+
   const selectedField = fields.find((f) => f.id === selectedFieldId);
 
   return (
@@ -648,6 +687,15 @@ export default function CertificatesDashboard() {
               </div>
 
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateSample}
+                  isLoading={isGeneratingSample}
+                  className="font-bold text-xs border-brand-orange text-brand-orange hover:bg-brand-orange/10"
+                >
+                  <Eye size={14} className="mr-1.5" /> Sample PDF
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

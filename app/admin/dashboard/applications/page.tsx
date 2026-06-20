@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +35,7 @@ export default function ApplicationsManagement() {
   // Modals
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
   const [acceptModalOpen, setAcceptModalOpen] = useState(false);
+  const [resumePreviewUrl, setResumePreviewUrl] = useState<string | null>(null);
   const [batchName, setBatchName] = useState('');
   const [remarks, setRemarks] = useState('');
 
@@ -151,6 +152,7 @@ export default function ApplicationsManagement() {
   });
 
   return (
+    <>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -298,8 +300,8 @@ export default function ApplicationsManagement() {
                 </div>
               )}
               <div>
-                <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">Profiles & Resumes</span>
-                <div className="flex gap-2.5 mt-2">
+                <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">Profiles & Links</span>
+                <div className="flex gap-2.5 mt-2 flex-wrap">
                   {selectedApp.linkedin_url && (
                     <a href={selectedApp.linkedin_url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-blue p-2 bg-slate-900 rounded border border-slate-850">
                       <Linkedin size={16} />
@@ -311,14 +313,25 @@ export default function ApplicationsManagement() {
                     </a>
                   )}
                   {selectedApp.resume_url && (
-                    <a
-                      href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/resumes/${selectedApp.resume_url}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-xs font-semibold hover:bg-slate-850 rounded border border-slate-850 text-slate-300"
-                    >
-                      <Download size={12} /> Resume
-                    </a>
+                    <>
+                      <button
+                        onClick={() => {
+                          const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/resumes/${selectedApp.resume_url}`;
+                          setResumePreviewUrl(url);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-xs font-semibold hover:bg-slate-800 rounded border border-slate-800 text-brand-orange cursor-pointer transition-colors"
+                      >
+                        <Eye size={12} /> Preview Resume
+                      </button>
+                      <a
+                        href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/resumes/${selectedApp.resume_url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-xs font-semibold hover:bg-slate-800 rounded border border-slate-800 text-slate-300 transition-colors"
+                      >
+                        <Download size={12} /> Download
+                      </a>
+                    </>
                   )}
                 </div>
               </div>
@@ -408,6 +421,40 @@ export default function ApplicationsManagement() {
         )}
       </Modal>
     </div>
+
+      {/* Resume Preview Modal */}
+      {resumePreviewUrl && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="relative flex flex-col w-full max-w-4xl h-[90vh] rounded-xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-900 bg-slate-950/80">
+              <span className="text-sm font-bold text-slate-200">Resume Preview</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={resumePreviewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded border border-slate-800 text-slate-300 hover:bg-slate-900 transition-colors"
+                >
+                  <Download size={12} /> Download
+                </a>
+                <button
+                  onClick={() => setResumePreviewUrl(null)}
+                  className="p-1.5 rounded hover:bg-slate-900 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={resumePreviewUrl}
+              className="flex-1 w-full bg-white"
+              title="Resume Preview"
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+        </div>
+      )}
+  </>
   );
 }
 

@@ -116,7 +116,10 @@ class Pixel {
   }
 }
 
-class PixelCanvasElement extends HTMLElement {
+let PixelCanvasElementClass: typeof HTMLElement | null = null;
+
+if (typeof HTMLElement !== 'undefined') {
+  PixelCanvasElementClass = class PixelCanvasElement extends HTMLElement {
   private canvas: HTMLCanvasElement
   private ctx: CanvasRenderingContext2D | null
   private pixels: Pixel[] = []
@@ -326,22 +329,8 @@ class PixelCanvasElement extends HTMLElement {
     animate()
   }
 }
-
-import * as React from "react"
-
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'pixel-canvas': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & {
-        'data-gap'?: number;
-        'data-speed'?: number;
-        'data-colors'?: string;
-        'data-variant'?: string;
-        'data-no-focus'?: string;
-      }, HTMLElement>;
-    }
-  }
 }
+
 
 export interface PixelCanvasProps extends React.HTMLAttributes<HTMLDivElement> {
   gap?: number
@@ -351,18 +340,20 @@ export interface PixelCanvasProps extends React.HTMLAttributes<HTMLDivElement> {
   noFocus?: boolean
 }
 
+const PixelCanvasTag = 'pixel-canvas' as any;
+
 const PixelCanvas = React.forwardRef<HTMLDivElement, PixelCanvasProps>(
   ({ gap, speed, colors, variant, noFocus, style, ...props }, ref) => {
     React.useEffect(() => {
       if (typeof window !== "undefined") {
         if (!customElements.get("pixel-canvas")) {
-          customElements.define("pixel-canvas", PixelCanvasElement)
+          customElements.define("pixel-canvas", PixelCanvasElementClass!)
         }
       }
     }, [])
 
     return (
-      <pixel-canvas
+      <PixelCanvasTag
         ref={ref}
         data-gap={gap}
         data-speed={speed}

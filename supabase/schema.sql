@@ -16,6 +16,10 @@ DROP TABLE IF EXISTS applications CASCADE;
 DROP TABLE IF EXISTS opportunities CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at() CASCADE;
 
+-- Clear storage objects and buckets for a clean reset
+DELETE FROM storage.objects WHERE bucket_id IN ('resumes', 'certificates', 'letters', 'templates', 'opportunity-assets');
+DELETE FROM storage.buckets WHERE id IN ('resumes', 'certificates', 'letters', 'templates', 'opportunity-assets');
+
 CREATE TABLE opportunities (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   slug TEXT NOT NULL UNIQUE CHECK (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),

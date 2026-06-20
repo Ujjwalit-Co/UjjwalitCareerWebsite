@@ -3,6 +3,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ToastProvider } from '@/components/ui/toast-provider';
 
+export const dynamic = 'force-dynamic';
+
 export default function VerifyLayout({
   children,
 }: {
