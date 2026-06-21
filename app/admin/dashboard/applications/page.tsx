@@ -23,6 +23,7 @@ import {
   Github,
   ChevronRight,
   BookOpen,
+  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -35,6 +36,8 @@ export default function ApplicationsManagement() {
   // Modals
   const [selectedApp, setSelectedApp] = useState<any | null>(null);
   const [acceptModalOpen, setAcceptModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [resumePreviewUrl, setResumePreviewUrl] = useState<string | null>(null);
   const [batchName, setBatchName] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -140,6 +143,33 @@ export default function ApplicationsManagement() {
   };
 
   const [isAccepting, setIsAccepting] = useState(false);
+
+  const handleDeleteApplication = async () => {
+    if (!selectedApp) return;
+    const supabase = createClient();
+    setIsDeleting(true);
+    try {
+      // Delete resume from storage first if it exists
+      if (selectedApp.resume_url) {
+        await supabase.storage.from('resumes').remove([selectedApp.resume_url]);
+      }
+      // Hard delete the application row
+      const { error } = await supabase
+        .from('applications')
+        .delete()
+        .eq('id', selectedApp.id);
+      if (error) throw error;
+      toast.success('Application permanently deleted');
+      setDeleteConfirmOpen(false);
+      setSelectedApp(null);
+      fetchApplications();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to delete application');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Filter local applications array based on search text
   const filteredApps = applications.filter((app) => {
@@ -303,34 +333,59 @@ export default function ApplicationsManagement() {
                 <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">Profiles & Links</span>
                 <div className="flex gap-2.5 mt-2 flex-wrap">
                   {selectedApp.linkedin_url && (
-                    <a href={selectedApp.linkedin_url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-blue p-2 bg-slate-900 rounded border border-slate-850">
+                    <a
+                      href={selectedApp.linkedin_url.startsWith('http') ? selectedApp.linkedin_url : `https://${selectedApp.linkedin_url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-slate-400 hover:text-brand-blue p-2 bg-slate-900 rounded border border-slate-850"
+                    >
                       <Linkedin size={16} />
                     </a>
                   )}
                   {selectedApp.github_url && (
-                    <a href={selectedApp.github_url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-teal p-2 bg-slate-900 rounded border border-slate-850">
+                    <a
+                      href={selectedApp.github_url.startsWith('http') ? selectedApp.github_url : `https://${selectedApp.github_url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-slate-400 hover:text-brand-teal p-2 bg-slate-900 rounded border border-slate-850"
+                    >
                       <Github size={16} />
                     </a>
                   )}
                   {selectedApp.resume_url && (
                     <>
                       <button
-                        onClick={() => {
-                          const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/resumes/${selectedApp.resume_url}`;
-                          setResumePreviewUrl(url);
+                        onClick={async () => {
+                          const supabase = createClient();
+                          const { data, error } = await supabase.storage
+                            .from('resumes')
+                            .createSignedUrl(selectedApp.resume_url, 3600);
+                          if (error || !data?.signedUrl) {
+                            toast.error('Could not generate resume preview link');
+                            return;
+                          }
+                          setResumePreviewUrl(data.signedUrl);
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-xs font-semibold hover:bg-slate-800 rounded border border-slate-800 text-brand-orange cursor-pointer transition-colors"
                       >
                         <Eye size={12} /> Preview Resume
                       </button>
-                      <a
-                        href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/resumes/${selectedApp.resume_url}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-xs font-semibold hover:bg-slate-800 rounded border border-slate-800 text-slate-300 transition-colors"
+                      <button
+                        onClick={async () => {
+                          const supabase = createClient();
+                          const { data, error } = await supabase.storage
+                            .from('resumes')
+                            .createSignedUrl(selectedApp.resume_url, 3600);
+                          if (error || !data?.signedUrl) {
+                            toast.error('Could not generate download link');
+                            return;
+                          }
+                          window.open(data.signedUrl, '_blank');
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-xs font-semibold hover:bg-slate-800 rounded border border-slate-800 text-slate-300 cursor-pointer transition-colors"
                       >
                         <Download size={12} /> Download
-                      </a>
+                      </button>
                     </>
                   )}
                 </div>
@@ -352,7 +407,7 @@ export default function ApplicationsManagement() {
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-2.5 justify-between items-center bg-slate-900/20 p-3 rounded-lg border border-slate-900">
                 <span className="text-xs text-slate-400 font-medium">Update Status:</span>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -379,6 +434,60 @@ export default function ApplicationsManagement() {
                   </Button>
                 </div>
               </div>
+
+              {/* Danger Zone */}
+              <div className="flex items-center justify-between bg-red-950/20 border border-red-900/30 rounded-lg p-3">
+                <div>
+                  <p className="text-xs font-semibold text-red-400">Danger Zone</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Permanently remove this application and resume file.</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className="gap-1.5 text-xs text-red-400 border-red-900/40 hover:bg-red-500/10 hover:border-red-500/30 shrink-0"
+                >
+                  <Trash2 size={12} /> Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        title="Delete Application"
+      >
+        {selectedApp && (
+          <div className="space-y-5">
+            <div className="flex items-start gap-3 p-4 bg-red-950/30 border border-red-900/40 rounded-xl">
+              <Trash2 size={18} className="text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-semibold text-red-300">This action is permanent and cannot be undone.</p>
+                <p className="text-slate-400 mt-1 text-xs leading-relaxed">
+                  Deleting <span className="font-bold text-slate-200">{selectedApp.full_name}</span>'s application will remove
+                  their record and resume file from storage permanently.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2.5">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirmOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteApplication}
+                isLoading={isDeleting}
+                className="gap-1.5 bg-red-600 hover:bg-red-500 text-white border-transparent"
+              >
+                {!isDeleting && <Trash2 size={14} />} Delete Permanently
+              </Button>
             </div>
           </div>
         )}

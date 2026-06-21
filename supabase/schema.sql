@@ -16,10 +16,6 @@ DROP TABLE IF EXISTS applications CASCADE;
 DROP TABLE IF EXISTS opportunities CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at() CASCADE;
 
--- Clear storage objects and buckets for a clean reset
-DELETE FROM storage.objects WHERE bucket_id IN ('resumes', 'certificates', 'letters', 'templates', 'opportunity-assets');
-DELETE FROM storage.buckets WHERE id IN ('resumes', 'certificates', 'letters', 'templates', 'opportunity-assets');
-
 CREATE TABLE opportunities (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   slug TEXT NOT NULL UNIQUE CHECK (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
@@ -191,6 +187,8 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('opportunity-assets', 'op
 
 DROP POLICY IF EXISTS "Anyone can upload resumes" ON storage.objects;
 DROP POLICY IF EXISTS "Only admins can read resumes" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can update resumes" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can delete resumes" ON storage.objects;
 DROP POLICY IF EXISTS "Anyone can view certificates" ON storage.objects;
 DROP POLICY IF EXISTS "Admins can upload certificates" ON storage.objects;
 DROP POLICY IF EXISTS "Admins can manage letters" ON storage.objects;
@@ -203,6 +201,8 @@ DROP POLICY IF EXISTS "Admins can manage opportunity assets" ON storage.objects;
 
 CREATE POLICY "Anyone can upload resumes" ON storage.objects FOR INSERT TO anon, authenticated WITH CHECK (bucket_id = 'resumes');
 CREATE POLICY "Only admins can read resumes" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'resumes');
+CREATE POLICY "Admins can update resumes" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'resumes') WITH CHECK (bucket_id = 'resumes');
+CREATE POLICY "Admins can delete resumes" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'resumes');
 CREATE POLICY "Anyone can view certificates" ON storage.objects FOR SELECT TO anon, authenticated USING (bucket_id = 'certificates');
 CREATE POLICY "Admins can upload certificates" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'certificates');
 CREATE POLICY "Admins can manage letters" ON storage.objects FOR ALL TO authenticated USING (bucket_id = 'letters') WITH CHECK (bucket_id = 'letters');
@@ -212,27 +212,3 @@ CREATE POLICY "Admins can update templates" ON storage.objects FOR UPDATE TO aut
 CREATE POLICY "Admins can delete templates" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'templates');
 CREATE POLICY "Anyone can view opportunity assets" ON storage.objects FOR SELECT TO anon, authenticated USING (bucket_id = 'opportunity-assets');
 CREATE POLICY "Admins can manage opportunity assets" ON storage.objects FOR ALL TO authenticated USING (bucket_id = 'opportunity-assets') WITH CHECK (bucket_id = 'opportunity-assets');
-
-INSERT INTO opportunities (slug, type, title, short_title, tagline, description, details_markdown, status, visibility, price_inr, stipend_label, duration_label, location_label, cohort_label, apply_by, capacity, display_order, accent, features, outcomes, eligibility, project_links, metadata) VALUES
-('web-development-internship', 'internship', 'Web Development Internship', 'Web Dev', 'Build responsive products with React, Next.js, APIs, and deployment workflows.', 'A practical remote internship for students who want portfolio-ready frontend and backend experience without getting trapped in tutorial-only work.', '## What you will build
-- A production-style landing page
-- A Supabase-backed dashboard
-- A deployable capstone with certificate verification
-
-## Review style
-Weekly checkpoints, GitHub feedback, and final project evaluation.', 'open', 'public', 299, 'No stipend', '4-8 weeks', 'Remote', 'Summer 2026', CURRENT_DATE + INTERVAL '30 days', 80, 10, 'teal', '["React and Next.js 16 App Router","Tailwind CSS v4 responsive UI","Supabase database, auth, and storage","GitHub workflow and Vercel deployment","Capstone project review"]', '["Portfolio-ready project","QR-verifiable completion certificate","Practical interview talking points"]', '["Basic HTML, CSS, and JavaScript","Can commit 6-8 focused hours per week","Own laptop and internet connection"]', '[{"label":"Ujjwalit Blogs","url":"https://ujjwalit.co.in"}]', '{"certificate_prefix":"UJ-WD"}'),
-('full-stack-ai-internship', 'internship', 'Full Stack + AI Internship', 'Full Stack AI', 'Ship full-stack features and learn how AI APIs fit into real products.', 'A deeper engineering track for students ready to connect databases, server logic, AI APIs, document generation, and production deployment.', '## What you will build
-- AI-assisted content or verification flows
-- Server actions and secure route handlers
-- Database-backed admin tools
-
-## Review style
-Architecture walkthroughs, code review, and final demo feedback.', 'open', 'public', 499, 'No stipend', '8-12 weeks', 'Remote', 'Summer 2026', CURRENT_DATE + INTERVAL '30 days', 50, 20, 'orange', '["Next.js full-stack architecture","OpenAI or Gemini style API integration","Advanced Supabase schema design","Secure file handling and QR generation","Admin dashboards and certificates"]', '["Full-stack capstone","QR-verifiable completion certificate","Strong project story for recruiters"]', '["Comfortable with JavaScript fundamentals","Has built at least one small web project","Can commit 8-10 focused hours per week"]', '[{"label":"Certificate verification","url":"https://verify.ujjwalit.co.in"}]', '{"certificate_prefix":"UJ-AI"}'),
-('startup-project-showcase', 'event', 'Startup Project Showcase', 'Showcase', 'Present student-built products and learn how founders evaluate MVPs.', 'A lightweight public event for students and early builders to understand product thinking, demo quality, and practical startup storytelling.', '## Event format
-- Short project demos
-- Mentor feedback
-- Best practices for presenting an MVP', 'open', 'public', 0, 'Free event', '1 day', 'Online', 'June 2026', CURRENT_DATE + INTERVAL '45 days', 120, 30, 'blue', '["Product demo walkthroughs","Founder-style feedback","Certificate of participation where applicable"]', '["Better demo confidence","Product feedback checklist","Networking with student builders"]', '["Open to students and early builders","Bring a project idea or demo if available"]', '[{"label":"Ujjwalit","url":"https://ujjwalit.co.in"}]', '{"certificate_prefix":"UJ-EVT"}');
-
--- Create admins from Supabase Dashboard -> Authentication -> Users.
--- Authenticated users can access admin policies; restrict dashboard access operationally to trusted admin accounts.
-

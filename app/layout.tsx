@@ -7,7 +7,11 @@ export const metadata: Metadata = {
   title: 'Ujjwalit Developers Program - Careers & Certificate Verification',
   description: 'Apply for Ujjwalit internship opportunities, register for student events, verify certificates, and manage credentials.',
   icons: {
-    icon: '/ujjwalitlogo.png',
+    icon: [
+      { url: '/ujjwalitlogo.png', type: 'image/png', sizes: 'any' },
+    ],
+    shortcut: [{ url: '/ujjwalitlogo.png', type: 'image/png' }],
+    apple: [{ url: '/ujjwalitlogo.png', type: 'image/png', sizes: '180x180' }],
   },
 };
 

@@ -57,6 +57,13 @@ const EMAIL_TYPES = [
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 400;
 
+// Defined outside component to avoid Temporal Dead Zone in useState lazy initializers
+const defaultSubjects: Record<string, string> = {
+  acceptance: 'Ujjwalit Technologies — Internship Offer',
+  onboarding: 'Ujjwalit Technologies — Onboarding Credentials & Setup',
+  completion: 'Ujjwalit Technologies — Internship Completion Certificate',
+};
+
 interface Student {
   id: string;
   student_code: string;
@@ -99,11 +106,7 @@ export default function EmailPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
 
-  const defaultSubjects: Record<string, string> = {
-    acceptance: 'Ujjwalit Technologies — Internship Offer',
-    onboarding: 'Ujjwalit Technologies — Onboarding Credentials & Setup',
-    completion: 'Ujjwalit Technologies — Internship Completion Certificate',
-  };
+  // defaultSubjects is defined at module level above
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
