@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const fromEmail = process.env.RESEND_FROM_EMAIL || 'Ujjwalit Technologies <internships@ujjwalit.co.in>';
+const fromEmail = process.env.RESEND_FROM_EMAIL || 'send@hr.ujjwalit.co.in';
 const careersUrl = process.env.NEXT_PUBLIC_CAREERS_URL || 'https://careers.ujjwalit.co.in';
 const verifyUrl = process.env.NEXT_PUBLIC_VERIFY_URL || 'https://verify.ujjwalit.co.in';
 const paymentFormUrl = process.env.NEXT_PUBLIC_PAYMENT_FORM_URL || `${careersUrl}/payment`;

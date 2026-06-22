@@ -37,6 +37,16 @@ export async function POST(request: NextRequest) {
     let subject = customSubject || '';
     let html = customHtml || '';
 
+    const certId =
+      type === 'completion'
+        ? (await supabase
+            .from('certificates')
+            .select('certificate_id')
+            .eq('student_id', studentId)
+            .eq('status', 'active')
+            .maybeSingle()).data?.certificate_id
+        : undefined;
+
     if (type === 'acceptance') {
       subject = subject || 'Ujjwalit Technologies — Internship Offer';
       html = html || getAcceptanceEmailHtml(app.full_name, trackName);
@@ -44,22 +54,26 @@ export async function POST(request: NextRequest) {
       subject = subject || 'Ujjwalit Technologies — Onboarding Credentials & Setup';
       html = html || getOnboardingEmailHtml(app.full_name, trackName, student.student_code);
     } else if (type === 'completion') {
-      // Fetch Certificate ID
-      const { data: cert } = await supabase
-        .from('certificates')
-        .select('certificate_id')
-        .eq('student_id', studentId)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (!cert) {
+      if (!certId) {
         return NextResponse.json({ error: 'No active certificate found for this student' }, { status: 400 });
       }
 
       subject = subject || 'Ujjwalit Technologies — Internship Completion Certificate';
-      html = html || getCompletionEmailHtml(app.full_name, trackName, cert.certificate_id);
+      html = html || getCompletionEmailHtml(app.full_name, trackName, certId);
     } else {
       return NextResponse.json({ error: 'Invalid email type' }, { status: 400 });
+    }
+
+    // Replace placeholders in custom templates
+    const replacements: Record<string, string> = {
+      '{{name}}': app.full_name,
+      '{{track}}': trackName,
+      '{{code}}': student.student_code,
+      '{{certId}}': certId || '',
+    };
+    for (const [key, value] of Object.entries(replacements)) {
+      subject = subject.replaceAll(key, value);
+      html = html.replaceAll(key, value);
     }
 
     // 2. Dispatch Email via Resend
