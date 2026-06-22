@@ -1,27 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateLetterPDF } from '@/lib/generators/documents';
+import { generateLetterPDF, generateLetterPDFFromTemplate } from '@/lib/generators/documents';
+
+const sampleParams = {
+  studentName: 'Sample Student',
+  studentCode: 'UJT-SAMPLE-001',
+  college: 'Sample University',
+  programName: 'Web Development',
+  startDate: '1 January 2026',
+  endDate: '28 February 2026',
+  dateStr: new Date().toLocaleDateString('en-IN', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  }),
+};
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { documentType, customText, backgroundUrl } = body;
+    const { documentType, customText, backgroundUrl, fields, verificationUrl } = body;
 
-    const pdfBytes = await generateLetterPDF({
-      studentName: 'Sample Student',
-      studentCode: 'UJT-SAMPLE-001',
-      college: 'Sample University',
-      programName: 'Web Development',
-      startDate: '1 January 2026',
-      endDate: '28 February 2026',
-      documentType: documentType || 'acceptance',
-      dateStr: new Date().toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
-      customText,
-      backgroundUrl,
-    });
+    let pdfBytes: Uint8Array;
+
+    if (fields) {
+      pdfBytes = await generateLetterPDFFromTemplate({
+        ...sampleParams,
+        backgroundUrl,
+        fields,
+        verificationUrl: verificationUrl || 'https://verify.ujjwalit.co.in/sample',
+      });
+    } else {
+      pdfBytes = await generateLetterPDF({
+        ...sampleParams,
+        documentType: documentType || 'acceptance',
+        customText,
+        backgroundUrl,
+      });
+    }
 
     const base64 = Buffer.from(pdfBytes).toString('base64');
     return NextResponse.json({ success: true, pdfBase64: base64 });

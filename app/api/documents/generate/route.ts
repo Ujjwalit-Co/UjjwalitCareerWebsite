@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { generateLetterPDF } from '@/lib/generators/documents';
+import { generateLetterPDF, generateLetterPDFFromTemplate } from '@/lib/generators/documents';
 import { getTrackLabel } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
-    // Check authentication in API route
-    const authHeader = request.headers.get('Authorization') || '';
-    const token = authHeader.replace('Bearer ', '');
-    
-    // In server environment, middleware already intercepts and verifies,
-    // but we can double check or decode token if needed.
-    // For simplicity, since it's admin role, we assume authorization is checked or we verify session.
-    
-    const { studentId, documentType, customText, backgroundUrl } = await request.json();
+    const { studentId, documentType, customText, backgroundUrl, fields } = await request.json();
 
     if (!studentId || !documentType) {
       return NextResponse.json(
@@ -24,7 +16,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Fetch Student and Application details
     const { data: student, error: studentError } = await supabase
       .from('students')
       .select(`
@@ -40,37 +31,49 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (studentError || !student) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 444 });
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
 
     const app = student.application;
-    const currentYear = new Date().getFullYear();
-
-    // Map start/end dates based on batch or default to 8 weeks
     const startDate = new Date(student.joined_at).toLocaleDateString('en-IN');
     const endDate = new Date(
       new Date(student.joined_at).getTime() + 60 * 24 * 60 * 60 * 1000
     ).toLocaleDateString('en-IN');
-
-    // 2. Generate PDF bytes
-    const pdfBytes = await generateLetterPDF({
-      studentName: app.full_name,
-      studentCode: student.student_code,
-      college: app.college,
-      programName: getTrackLabel(app.internship_track),
-      startDate,
-      endDate,
-      documentType,
-      dateStr: new Date().toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
-      customText,
-      backgroundUrl,
+    const dateStr = new Date().toLocaleDateString('en-IN', {
+      year: 'numeric', month: 'long', day: 'numeric',
     });
+    const programName = getTrackLabel(app.internship_track);
 
-    // 3. Upload PDF to Supabase Storage 'letters' bucket
+    let pdfBytes: Uint8Array;
+
+    if (fields) {
+      pdfBytes = await generateLetterPDFFromTemplate({
+        studentName: app.full_name,
+        studentCode: student.student_code,
+        college: app.college,
+        programName,
+        startDate,
+        endDate,
+        dateStr,
+        backgroundUrl,
+        fields,
+        verificationUrl: `${process.env.NEXT_PUBLIC_VERIFY_URL || 'https://verify.ujjwalit.co.in'}/${student.student_code}`,
+      });
+    } else {
+      pdfBytes = await generateLetterPDF({
+        studentName: app.full_name,
+        studentCode: student.student_code,
+        college: app.college,
+        programName,
+        startDate,
+        endDate,
+        documentType,
+        dateStr,
+        customText,
+        backgroundUrl,
+      });
+    }
+
     const fileName = `${studentId}/${documentType}.pdf`;
     const { error: uploadError } = await supabase.storage
       .from('letters')
@@ -83,7 +86,6 @@ export async function POST(request: NextRequest) {
       throw new Error(`Upload error: ${uploadError.message}`);
     }
 
-    // 4. Save record in documents table
     const { error: dbError } = await supabase.from('documents').insert({
       student_id: studentId,
       document_type: documentType,
@@ -94,7 +96,11 @@ export async function POST(request: NextRequest) {
       throw new Error(`Database record insert error: ${dbError.message}`);
     }
 
-    return NextResponse.json({ success: true, fileName });
+    const { data: { publicUrl } } = supabase.storage
+      .from('letters')
+      .getPublicUrl(fileName);
+
+    return NextResponse.json({ success: true, fileName, publicUrl });
   } catch (err: any) {
     console.error('Letter generation error:', err);
     return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });

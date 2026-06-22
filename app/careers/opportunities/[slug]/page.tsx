@@ -1,12 +1,13 @@
 import React, { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Award, Calendar, CheckCircle2, Clock, MapPin, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Award, Calendar, CheckCircle2, Clock, MapPin, ShieldCheck, Users, BookOpen } from 'lucide-react';
 import { getOpportunityBySlug, getOpenOpportunities } from '@/lib/opportunities';
 import { formatFee } from '@/lib/opportunities.shared';
 import { ApplicationForm } from '@/components/careers/ApplicationForm';
 import { PixelCanvas } from '@/components/ui/pixel-canvas';
 import { CpuArchitecture } from '@/components/ui/cpu-architecture';
+import NavicChatbot from '@/components/careers/NavicChatbot';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,6 +106,22 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
               <p className="mt-3 text-sm leading-6 text-[#A1A1AA]">{opportunity.description}</p>
             </section>
 
+            {opportunity.eligibility?.length > 0 && (
+              <section className="rounded-lg border border-brand-border bg-brand-secondary p-5 md:p-6">
+                <h2 className="text-xl font-extrabold flex items-center gap-2">
+                  <BookOpen size={20} className="text-brand-teal" /> Eligibility
+                </h2>
+                <ul className="mt-4 space-y-2">
+                  {opportunity.eligibility.map((item: string) => (
+                    <li key={item} className="flex gap-3 text-sm leading-6 text-[#A1A1AA]">
+                      <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-brand-teal" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {opportunity.features?.length > 0 && (
               <section className="space-y-4">
                 <h2 className="text-xl font-extrabold">Technical tracks & skills covered</h2>
@@ -136,7 +153,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
             {opportunity.project_links?.length > 0 && (
               <div className="flex flex-wrap gap-2 border-t border-brand-border pt-6">
                 {opportunity.project_links.map((link: { url: string; label: string; }) => (
-                  <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-xs font-bold text-[#A1A1AA] transition-colors hover:border-brand-blue hover:text-[#F5F5F5]">
+                  <a key={`${link.url}-${link.label}`} href={link.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-xs font-bold text-[#A1A1AA] transition-colors hover:border-brand-blue hover:text-[#F5F5F5]">
                     {link.label} <ArrowRight size={12} className="rotate-[-45deg]" />
                   </a>
                 ))}
@@ -145,6 +162,8 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           </article>
         </div>
       </div>
+
+      <NavicChatbot />
     </div>
   );
 }
