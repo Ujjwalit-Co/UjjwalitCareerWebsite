@@ -6,6 +6,8 @@ const sampleParams = {
   studentCode: 'UJT-SAMPLE-001',
   college: 'Sample University',
   programName: 'Web Development',
+  batchName: 'UDP 2026',
+  duration: '60 Days',
   startDate: '1 January 2026',
   endDate: '28 February 2026',
   dateStr: new Date().toLocaleDateString('en-IN', {
@@ -26,6 +28,7 @@ export async function POST(request: NextRequest) {
         backgroundUrl,
         fields,
         verificationUrl: verificationUrl || 'https://verify.ujjwalit.co.in/sample',
+        qrUrl: 'https://careers.ujjwalit.co.in',
       });
     } else {
       pdfBytes = await generateLetterPDF({

@@ -715,7 +715,7 @@ export default function CertificatesDashboard() {
                 style={{
                   width: `${designerWidth}px`,
                   height: `${designerHeight}px`,
-                  backgroundImage: bgUrl ? `url(${bgUrl})` : 'none',
+                  backgroundImage: bgUrl && !bgUrl.match(/\.pdf$/i) ? `url(${bgUrl})` : 'none',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   position: 'relative',
@@ -729,6 +729,14 @@ export default function CertificatesDashboard() {
                     <Award size={48} />
                     <span className="text-xs font-semibold uppercase tracking-wider">Empty Canvas Frame</span>
                     <span className="text-[10px] text-slate-600">Upload background image or paste URL on the right panel</span>
+                  </div>
+                )}
+
+                {bgUrl?.match(/\.pdf$/i) && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-2 bg-slate-900/80 rounded-lg">
+                    <Award size={48} />
+                    <span className="text-xs font-semibold uppercase tracking-wider">PDF Background</span>
+                    <span className="text-[10px] text-slate-600">Vector quality preserved — preview available via Sample PDF</span>
                   </div>
                 )}
 
@@ -820,7 +828,7 @@ export default function CertificatesDashboard() {
                   <input
                     type="file"
                     ref={fileInputRef}
-                    accept="image/*"
+                    accept="image/*,.pdf"
                     onChange={handleFileUpload}
                     className="hidden"
                   />

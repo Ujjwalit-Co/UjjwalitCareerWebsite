@@ -37,15 +37,11 @@ const designerWidth = 500;
 const designerHeight = 707;
 
 const defaultDocFields: DocFieldConfig[] = [
-  { id: '1', type: 'text', placeholder: 'UJJWALIT TECHNOLOGIES', x: 60, y: 50, fontSize: 18, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
-  { id: '2', type: 'text', placeholder: 'Date: {{date}}', x: 60, y: 100, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#64748B', textAlign: 'left' },
-  { id: '3', type: 'text', placeholder: 'TO WHOM IT MAY CONCERN', x: 60, y: 140, fontSize: 12, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
-  { id: '4', type: 'text', placeholder: 'Name: {{name}}', x: 60, y: 180, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-  { id: '5', type: 'text', placeholder: 'Code: {{code}}', x: 60, y: 200, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-  { id: '6', type: 'text', placeholder: 'College: {{college}}', x: 60, y: 220, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-  { id: '7', type: 'text', placeholder: 'Track: {{program}}', x: 60, y: 240, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-  { id: '8', type: 'text', placeholder: 'This is to certify that {{name}}, a student of {{college}}, has successfully completed the {{program}} program.', x: 60, y: 300, fontSize: 11, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-  { id: '9', type: 'text', placeholder: 'Authorized Signatory', x: 60, y: 620, fontSize: 10, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
+  { id: '1', type: 'text', placeholder: 'UJJWALIT TECHNOLOGIES PVT. LTD.', x: 60, y: 30, fontSize: 14, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
+  { id: '2', type: 'text', placeholder: 'UJJWALIT DEVELOPERS PROGRAM (UDP) 2026', x: 250, y: 52, fontSize: 11, fontFamily: 'Sans', fontWeight: 'bold', color: '#1A8BA6', textAlign: 'center' },
+  { id: '3', type: 'text', placeholder: 'INTERNSHIP OFFER LETTER', x: 250, y: 68, fontSize: 10, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'center' },
+  { id: '4', type: 'text', placeholder: `Offer Letter ID: {{offer_id}}\nDate of Issue: {{issue_date}}\n\nDear {{student_name}},\n\nWe are pleased to inform you that, following the review of your application, you have been selected to participate as a {{internship_title}} under the Ujjwalit Developers Program (UDP) 2026, an industry-oriented training and internship initiative conducted by Ujjwalit Technologies Pvt. Ltd.\n\nProgram Details\n\n• Internship Role: {{internship_title}}\n• Batch: {{batch_name}}\n• Mode: Remote\n• Duration: {{duration}}\n• Expected Weekly Commitment: 4-6 Hours\n• Start Date: {{start_date}}\n\nAs a participant in the program, you will gain practical exposure to industry-oriented development workflows through project-based learning, mentorship, and guided implementation.\n\nDuring the internship, you will:\n\n• Work on one Major Project under mentor guidance\n• Complete one Minor Project as part of self-assessment\n• Participate in mentorship and learning sessions\n• Learn modern development tools, workflows, and best practices\n• Build portfolio-ready projects and practical technical skills\n\nUpon successful completion of the program requirements, participants will be eligible to receive a Verifiable Internship Completion Certificate issued by Ujjwalit Technologies Pvt. Ltd.\n\nOutstanding participants may additionally be considered for:\n\n• Letter of Recommendation\n• Project Excellence Recognition\n• Future Opportunities with Ujjwalit Technologies\n• Performance-Based Stipends and Rewards (Limited Selection)\n\nImportant Terms\n\n1. Participation in the program does not guarantee employment with Ujjwalit Technologies Pvt. Ltd.\n2. Successful completion of assigned projects and participation requirements is mandatory for certification.\n3. Participation does not guarantee any stipend, compensation, employment, or monetary benefit.\n4. A limited number of outstanding participants may be considered for performance-based stipends, rewards, recommendation letters, or future opportunities based on their performance throughout the program.\n5. Registration and enrollment fees, once paid, are non-refundable.\n6. Participants are expected to maintain professional conduct throughout the duration of the program.\n\nYour seat has been provisionally reserved and will be confirmed upon successful completion of the enrollment and verification process.\n\nWe congratulate you on your selection and look forward to supporting your learning journey through UDP 2026.\n\nWarm Regards,\n\nUjjwal Paliwal\nProgram Director\nUjjwalit Developers Program (UDP)\n\n{{signature_image}}\n\nUjjwalit Technologies Pvt. Ltd.\ncareers.ujjwalit.co.in\nOffer Verification ID: {{offer_id}}`, x: 60, y: 90, fontSize: 8.5, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
+  { id: '5', type: 'qrcode', placeholder: 'QR_CODE_PLACEHOLDER', x: 410, y: 630, fontSize: 55, fontFamily: 'Sans', fontWeight: 'normal', color: '#000000', textAlign: 'left' },
 ];
 
 export default function DocumentsDashboard() {
@@ -277,6 +273,7 @@ export default function DocumentsDashboard() {
 
     setIsBulkGenerating(true);
     const total = selectedIds.size;
+    const isSingle = total === 1;
     setBulkProgress({ current: 0, total });
     setBulkResults([]);
     const results: { name: string; success: boolean; url?: string; error?: string }[] = [];
@@ -310,13 +307,15 @@ export default function DocumentsDashboard() {
           .from('letters')
           .getPublicUrl(data.fileName);
 
-        // Fetch the PDF bytes and add to ZIP
-        const pdfRes = await fetch(publicUrl);
-        const pdfBlob = await pdfRes.blob();
-        const safeName = `${st.student_code || `student-${i}`}-${designDocType}.pdf`;
-        zip.file(safeName.replace(/[^\w\-\.]/g, '_'), pdfBlob);
-
-        results.push({ name: studentName, success: true, url: publicUrl });
+        if (isSingle) {
+          results.push({ name: studentName, success: true, url: publicUrl });
+        } else {
+          const pdfRes = await fetch(publicUrl);
+          const pdfBlob = await pdfRes.blob();
+          const safeName = `${st.student_code || `student-${i}`}-${designDocType}.pdf`;
+          zip.file(safeName.replace(/[^\w\-\.]/g, '_'), pdfBlob);
+          results.push({ name: studentName, success: true, url: publicUrl });
+        }
       } catch (err: any) {
         results.push({ name: studentName, success: false, error: err.message });
       }
@@ -324,11 +323,15 @@ export default function DocumentsDashboard() {
       setBulkResults([...results]);
     }
 
-    // Generate and download ZIP
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    saveAs(zipBlob, `${designDocType}-letters-${Date.now()}.zip`);
+    if (isSingle && results[0]?.success && results[0]?.url) {
+      window.open(results[0].url, '_blank');
+      toast.success('Letter generated! Preview opened in new tab.');
+    } else if (!isSingle) {
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `${designDocType}-letters-${Date.now()}.zip`);
+      toast.success(`Generated ${results.filter((r) => r.success).length}/${total} letters — ZIP downloaded!`);
+    }
 
-    toast.success(`Generated ${results.filter((r) => r.success).length}/${total} letters — ZIP downloaded!`);
     setIsBulkGenerating(false);
     await loadGeneratedDocs();
   };
@@ -537,7 +540,19 @@ export default function DocumentsDashboard() {
                     )}
                     <span className="text-slate-300 truncate">{r.name}</span>
                     {r.success ? (
-                      <span className="text-green-400 ml-auto shrink-0">Done</span>
+                      <>
+                        <span className="text-green-400 ml-auto shrink-0">Done</span>
+                        {r.url && (
+                          <a
+                            href={r.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-brand-teal hover:underline shrink-0 ml-2"
+                          >
+                            Preview
+                          </a>
+                        )}
+                      </>
                     ) : (
                       <span className="text-red-400 ml-auto shrink-0 text-[10px]">{r.error}</span>
                     )}
@@ -656,7 +671,7 @@ export default function DocumentsDashboard() {
                 style={{
                   width: `${designerWidth}px`,
                   height: `${designerHeight}px`,
-                  backgroundImage: bgUrl ? `url(${bgUrl})` : 'none',
+                  backgroundImage: bgUrl && !bgUrl.match(/\.pdf$/i) ? `url(${bgUrl})` : 'none',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   position: 'relative',
@@ -670,6 +685,14 @@ export default function DocumentsDashboard() {
                     <FileText size={48} />
                     <span className="text-xs font-semibold uppercase tracking-wider">Empty Canvas</span>
                     <span className="text-[10px] text-slate-600">Upload background image on the right panel</span>
+                  </div>
+                )}
+
+                {bgUrl?.match(/\.pdf$/i) && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-2 bg-slate-900/80 rounded-lg">
+                    <FileText size={48} />
+                    <span className="text-xs font-semibold uppercase tracking-wider">PDF Background</span>
+                    <span className="text-[10px] text-slate-600">Vector quality preserved — preview available via Sample PDF</span>
                   </div>
                 )}
 
@@ -757,13 +780,13 @@ export default function DocumentsDashboard() {
                   >
                     <Upload size={14} /> Upload
                   </Button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    onChange={handleUploadBackground}
-                    className="hidden"
-                  />
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*,.pdf"
+                onChange={handleUploadBackground}
+                className="hidden"
+              />
                 </div>
               </div>
 

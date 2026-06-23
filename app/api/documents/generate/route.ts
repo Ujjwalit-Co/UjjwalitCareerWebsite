@@ -25,6 +25,9 @@ export async function POST(request: NextRequest) {
           college,
           branch,
           internship_track
+        ),
+        opportunity:opportunities (
+          duration_label
         )
       `)
       .eq('id', studentId)
@@ -43,6 +46,7 @@ export async function POST(request: NextRequest) {
       year: 'numeric', month: 'long', day: 'numeric',
     });
     const programName = getTrackLabel(app.internship_track);
+    const durationLabel = student.opportunity?.duration_label || '6 Weeks';
 
     let pdfBytes: Uint8Array;
 
@@ -52,12 +56,15 @@ export async function POST(request: NextRequest) {
         studentCode: student.student_code,
         college: app.college,
         programName,
+        batchName: student.batch_name || '',
+        duration: durationLabel,
         startDate,
         endDate,
         dateStr,
         backgroundUrl,
         fields,
         verificationUrl: `${process.env.NEXT_PUBLIC_VERIFY_URL || 'https://verify.ujjwalit.co.in'}/${student.student_code}`,
+        qrUrl: 'https://careers.ujjwalit.co.in',
       });
     } else {
       pdfBytes = await generateLetterPDF({
@@ -75,14 +82,34 @@ export async function POST(request: NextRequest) {
     }
 
     const fileName = `${studentId}/${documentType}.pdf`;
-    const { error: uploadError } = await supabase.storage
+
+    const ensureBucket = async () => {
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const existing = buckets?.find((b) => b.name === 'letters');
+      if (!existing) {
+        await supabase.storage.createBucket('letters', { public: true });
+      } else if (!existing.public) {
+        await supabase.storage.updateBucket('letters', { public: true });
+      }
+    };
+
+    let { error: uploadError } = await supabase.storage
       .from('letters')
       .upload(fileName, pdfBytes, {
         contentType: 'application/pdf',
         upsert: true,
       });
 
-    if (uploadError) {
+    if (uploadError?.message?.includes('Bucket not found')) {
+      await ensureBucket();
+      const { error: retryError } = await supabase.storage
+        .from('letters')
+        .upload(fileName, pdfBytes, {
+          contentType: 'application/pdf',
+          upsert: true,
+        });
+      if (retryError) throw new Error(`Upload error: ${retryError.message}`);
+    } else if (uploadError) {
       throw new Error(`Upload error: ${uploadError.message}`);
     }
 

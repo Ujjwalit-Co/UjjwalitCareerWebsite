@@ -133,23 +133,27 @@ export async function generateCertificatePDF({
   if (templateBackgroundUrl) {
     try {
       const response = await fetch(templateBackgroundUrl);
-      const imageBytes = await response.arrayBuffer();
-      
-      let bgImage;
-      if (templateBackgroundUrl.toLowerCase().endsWith('.png')) {
-        bgImage = await pdfDoc.embedPng(imageBytes);
+      const bgBytes = await response.arrayBuffer();
+
+      if (templateBackgroundUrl.toLowerCase().endsWith('.pdf')) {
+        const sourceDoc = await PDFDocument.load(bgBytes);
+        const embeddedPage = await pdfDoc.embedPage(sourceDoc.getPage(0));
+        page.drawPage(embeddedPage, {
+          x: 0, y: 0, width: pageWidth, height: pageHeight,
+        });
       } else {
-        bgImage = await pdfDoc.embedJpg(imageBytes);
+        let bgImage;
+        if (templateBackgroundUrl.toLowerCase().endsWith('.png')) {
+          bgImage = await pdfDoc.embedPng(bgBytes);
+        } else {
+          bgImage = await pdfDoc.embedJpg(bgBytes);
+        }
+        page.drawImage(bgImage, {
+          x: 0, y: 0, width: pageWidth, height: pageHeight,
+        });
       }
-      
-      page.drawImage(bgImage, {
-        x: 0,
-        y: 0,
-        width: pageWidth,
-        height: pageHeight,
-      });
     } catch (err) {
-      console.error('Failed to embed background template image:', err);
+      console.error('Failed to embed background template:', err);
       // Fallback: draw a nice background border in brand navy
       page.drawRectangle({
         x: 20,
@@ -274,8 +278,7 @@ export async function generateCertificatePDF({
     };
 
     const wrappedLines = wrapText(text, font, size, getMaxWidth());
-    const totalHeight = wrappedLines.length * lineHeight;
-    let baseY = pageHeight - (field.y * scaleY) - totalHeight;
+    let baseY = pageHeight - (field.y * scaleY) - size;
 
     for (const line of wrappedLines) {
       if (line === '') {

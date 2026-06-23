@@ -32,12 +32,15 @@ interface TemplateLetterParams {
   studentCode: string;
   college: string;
   programName: string;
+  batchName: string;
+  duration: string;
   startDate: string;
   endDate: string;
   dateStr: string;
   backgroundUrl?: string;
   fields?: DocFieldConfig[];
   verificationUrl?: string;
+  qrUrl?: string;
 }
 
 const toTitleCase = (str: string): string => {
@@ -119,12 +122,15 @@ export async function generateLetterPDFFromTemplate({
   studentCode,
   college,
   programName,
+  batchName = '',
+  duration = '',
   startDate,
   endDate,
   dateStr,
   backgroundUrl,
   fields,
   verificationUrl,
+  qrUrl,
 }: TemplateLetterParams): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
 
@@ -141,20 +147,25 @@ export async function generateLetterPDFFromTemplate({
     try {
       const bgResponse = await fetch(backgroundUrl);
       const bgBytes = await bgResponse.arrayBuffer();
-      let bgImage;
-      if (backgroundUrl.match(/\.png$/i)) {
-        bgImage = await pdfDoc.embedPng(bgBytes);
+      if (backgroundUrl.match(/\.pdf$/i)) {
+        const sourceDoc = await PDFDocument.load(bgBytes);
+        const embeddedPage = await pdfDoc.embedPage(sourceDoc.getPage(0));
+        page.drawPage(embeddedPage, {
+          x: 0, y: 0, width: pageWidth, height: pageHeight,
+        });
       } else {
-        bgImage = await pdfDoc.embedJpg(bgBytes);
+        let bgImage;
+        if (backgroundUrl.match(/\.png$/i)) {
+          bgImage = await pdfDoc.embedPng(bgBytes);
+        } else {
+          bgImage = await pdfDoc.embedJpg(bgBytes);
+        }
+        page.drawImage(bgImage, {
+          x: 0, y: 0, width: pageWidth, height: pageHeight,
+        });
       }
-      page.drawImage(bgImage, {
-        x: 0,
-        y: 0,
-        width: pageWidth,
-        height: pageHeight,
-      });
     } catch (e) {
-      console.warn('Failed to load background image, proceeding without it');
+      console.warn('Failed to load background, proceeding without it');
     }
   }
 
@@ -167,21 +178,18 @@ export async function generateLetterPDFFromTemplate({
   };
 
   const defaultFields: DocFieldConfig[] = fields && fields.length > 0 ? fields : [
-    { id: '1', type: 'text', placeholder: 'UJJWALIT TECHNOLOGIES', x: 60, y: 50, fontSize: 18, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
-    { id: '2', type: 'text', placeholder: 'Date: {{date}}', x: 60, y: 100, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#64748B', textAlign: 'left' },
-    { id: '3', type: 'text', placeholder: 'TO WHOM IT MAY CONCERN', x: 60, y: 140, fontSize: 12, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
-    { id: '4', type: 'text', placeholder: 'Name: {{name}}', x: 60, y: 180, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-    { id: '5', type: 'text', placeholder: 'Code: {{code}}', x: 60, y: 200, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-    { id: '6', type: 'text', placeholder: 'College: {{college}}', x: 60, y: 220, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-    { id: '7', type: 'text', placeholder: 'Track: {{program}}', x: 60, y: 240, fontSize: 10, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-    { id: '8', type: 'text', placeholder: 'This is to certify that {{name}}, a student of {{college}}, has successfully completed the {{program}} program.', x: 60, y: 300, fontSize: 11, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
-    { id: '9', type: 'text', placeholder: 'Authorized Signatory', x: 60, y: 620, fontSize: 10, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
+    { id: '1', type: 'text', placeholder: 'UJJWALIT TECHNOLOGIES PVT. LTD.', x: 60, y: 30, fontSize: 14, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
+    { id: '2', type: 'text', placeholder: 'UJJWALIT DEVELOPERS PROGRAM (UDP) 2026', x: 250, y: 52, fontSize: 11, fontFamily: 'Sans', fontWeight: 'bold', color: '#1A8BA6', textAlign: 'center' },
+    { id: '3', type: 'text', placeholder: 'INTERNSHIP OFFER LETTER', x: 250, y: 68, fontSize: 10, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'center' },
+    { id: '4', type: 'text', placeholder: `Offer Letter ID: {{offer_id}}\nDate of Issue: {{issue_date}}\n\nDear {{student_name}},\n\nWe are pleased to inform you that, following the review of your application, you have been selected to participate as a {{internship_title}} under the Ujjwalit Developers Program (UDP) 2026, an industry-oriented training and internship initiative conducted by Ujjwalit Technologies Pvt. Ltd.\n\nProgram Details\n\n• Internship Role: {{internship_title}}\n• Batch: {{batch_name}}\n• Mode: Remote\n• Duration: {{duration}}\n• Expected Weekly Commitment: 4-6 Hours\n• Start Date: {{start_date}}\n\nAs a participant in the program, you will gain practical exposure to industry-oriented development workflows through project-based learning, mentorship, and guided implementation.\n\nDuring the internship, you will:\n\n• Work on one Major Project under mentor guidance\n• Complete one Minor Project as part of self-assessment\n• Participate in mentorship and learning sessions\n• Learn modern development tools, workflows, and best practices\n• Build portfolio-ready projects and practical technical skills\n\nUpon successful completion of the program requirements, participants will be eligible to receive a Verifiable Internship Completion Certificate issued by Ujjwalit Technologies Pvt. Ltd.\n\nOutstanding participants may additionally be considered for:\n\n• Letter of Recommendation\n• Project Excellence Recognition\n• Future Opportunities with Ujjwalit Technologies\n• Performance-Based Stipends and Rewards (Limited Selection)\n\nImportant Terms\n\n1. Participation in the program does not guarantee employment with Ujjwalit Technologies Pvt. Ltd.\n2. Successful completion of assigned projects and participation requirements is mandatory for certification.\n3. Participation does not guarantee any stipend, compensation, employment, or monetary benefit.\n4. A limited number of outstanding participants may be considered for performance-based stipends, rewards, recommendation letters, or future opportunities based on their performance throughout the program.\n5. Registration and enrollment fees, once paid, are non-refundable.\n6. Participants are expected to maintain professional conduct throughout the duration of the program.\n\nYour seat has been provisionally reserved and will be confirmed upon successful completion of the enrollment and verification process.\n\nWe congratulate you on your selection and look forward to supporting your learning journey through UDP 2026.\n\nWarm Regards,\n\nUjjwal Paliwal\nProgram Director\nUjjwalit Developers Program (UDP)\n\n{{signature_image}}\n\nUjjwalit Technologies Pvt. Ltd.\ncareers.ujjwalit.co.in\nOffer Verification ID: {{offer_id}}`, x: 60, y: 90, fontSize: 8.5, fontFamily: 'Sans', fontWeight: 'normal', color: '#1e293b', textAlign: 'left' },
+    { id: '5', type: 'qrcode', placeholder: 'QR_CODE_PLACEHOLDER', x: 410, y: 630, fontSize: 55, fontFamily: 'Sans', fontWeight: 'normal', color: '#000000', textAlign: 'left' },
   ];
 
   const hasQrField = defaultFields.some((f) => f.type === 'qrcode');
-  if (hasQrField && verificationUrl) {
+  const qrTargetUrl = qrUrl || verificationUrl;
+  if (hasQrField && qrTargetUrl) {
     try {
-      const qrDataUrl = await generateQRCode(verificationUrl);
+      const qrDataUrl = await generateQRCode(qrTargetUrl);
       const qrClean = qrDataUrl.replace(/^data:image\/png;base64,/, '');
       const qrBytes = Buffer.from(qrClean, 'base64');
       const qrImage = await pdfDoc.embedPng(qrBytes);
@@ -210,11 +218,19 @@ export async function generateLetterPDFFromTemplate({
 
     let text = field.placeholder
       .replace(/\{\{name\}\}/g, toTitleCase(studentName))
+      .replace(/\{\{student_name\}\}/g, toTitleCase(studentName))
       .replace(/\{\{college\}\}/g, toTitleCase(college))
       .replace(/\{\{program\}\}/g, programName)
+      .replace(/\{\{track_name\}\}/g, programName)
       .replace(/\{\{code\}\}/g, studentCode)
+      .replace(/\{\{offer_id\}\}/g, batchName)
+      .replace(/\{\{batch_name\}\}/g, batchName)
+      .replace(/\{\{duration\}\}/g, duration)
       .replace(/\{\{date\}\}/g, dateStr)
+      .replace(/\{\{issue_date\}\}/g, dateStr)
+      .replace(/\{\{internship_title\}\}/g, programName)
       .replace(/\{\{startDate\}\}/g, startDate)
+      .replace(/\{\{start_date\}\}/g, startDate)
       .replace(/\{\{endDate\}\}/g, endDate);
 
     let font = standardFonts.Sans;
@@ -241,8 +257,7 @@ export async function generateLetterPDFFromTemplate({
     };
 
     const wrappedLines = wrapText(text, font, size, getMaxWidth());
-    const totalHeight = wrappedLines.length * lineHeight;
-    let baseY = pageHeight - (field.y * scaleY) - totalHeight;
+    let baseY = pageHeight - (field.y * scaleY) - size;
 
     for (const line of wrappedLines) {
       if (line === '') {
@@ -289,21 +304,26 @@ export async function generateLetterPDF({
     try {
       const bgResponse = await fetch(backgroundUrl);
       const bgBytes = await bgResponse.arrayBuffer();
-      let bgImage;
-      if (backgroundUrl.match(/\.png$/i)) {
-        bgImage = await pdfDoc.embedPng(bgBytes);
+      if (backgroundUrl.match(/\.pdf$/i)) {
+        const sourceDoc = await PDFDocument.load(bgBytes);
+        const embeddedPage = await pdfDoc.embedPage(sourceDoc.getPage(0));
+        page.drawPage(embeddedPage, {
+          x: 0, y: 0, width: pageWidth, height: pageHeight,
+        });
       } else {
-        bgImage = await pdfDoc.embedJpg(bgBytes);
+        let bgImage;
+        if (backgroundUrl.match(/\.png$/i)) {
+          bgImage = await pdfDoc.embedPng(bgBytes);
+        } else {
+          bgImage = await pdfDoc.embedJpg(bgBytes);
+        }
+        page.drawImage(bgImage, {
+          x: 0, y: 0, width: pageWidth, height: pageHeight,
+          opacity: 0.15,
+        });
       }
-      page.drawImage(bgImage, {
-        x: 0,
-        y: 0,
-        width: pageWidth,
-        height: pageHeight,
-        opacity: 0.15,
-      });
     } catch (e) {
-      console.warn('Failed to load background image, proceeding without it');
+      console.warn('Failed to load background, proceeding without it');
     }
   }
 
