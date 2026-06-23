@@ -222,7 +222,7 @@ export default function NavicChatbot() {
   };
 
   return (
-    <div className="fixed bottom-0 sm:bottom-6 right-0 sm:right-6 z-50 flex flex-col items-end gap-3">
+    <div className={`fixed bottom-0 sm:bottom-6 right-0 sm:right-6 z-50 flex flex-col items-end gap-3 ${isOpen ? '' : 'pointer-events-none'}`}>
       {/* Chat Panel */}
       <div
         className={`w-full sm:w-[390px] h-[100dvh] sm:h-[600px] sm:max-h-[80vh] flex flex-col rounded-none sm:rounded-2xl border-0 sm:border border-slate-800 bg-slate-950 shadow-2xl transition-all duration-300 origin-bottom-right overflow-hidden ${
@@ -332,7 +332,7 @@ export default function NavicChatbot() {
 
       {/* Floating Button */}
       {!isOpen && (
-        <div className="sm:pr-0 pr-4 pb-4 sm:pb-0">
+        <div className="sm:pr-0 pr-4 pb-4 sm:pb-0 pointer-events-auto">
           <button
             onClick={() => setIsOpen(true)}
             className="group flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-orange to-amber-500 shadow-lg shadow-brand-orange/20 hover:shadow-brand-orange/40 hover:scale-105 transition-all cursor-pointer active:scale-95"
