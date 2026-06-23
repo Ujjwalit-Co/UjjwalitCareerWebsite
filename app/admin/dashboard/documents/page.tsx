@@ -148,10 +148,8 @@ export default function DocumentsDashboard() {
   }, [loadStudents, loadGeneratedDocs]);
 
   useEffect(() => {
-    if (activeTab === 'designer') {
-      loadDocTemplate(designDocType);
-    }
-  }, [activeTab, designDocType, loadDocTemplate]);
+    loadDocTemplate(designDocType);
+  }, [designDocType, loadDocTemplate]);
 
   // Toggle student selection
   const toggleSelect = (id: string) => {
