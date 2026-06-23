@@ -55,6 +55,7 @@ export default function DocumentsDashboard() {
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [bulkResults, setBulkResults] = useState<{ name: string; success: boolean; url?: string; error?: string }[]>([]);
+  const [studentSearch, setStudentSearch] = useState('');
 
   // Designer states
   const [designDocType, setDesignDocType] = useState<'acceptance' | 'onboarding' | 'completion' | 'recommendation'>('acceptance');
@@ -66,6 +67,7 @@ export default function DocumentsDashboard() {
   const [isGeneratingSample, setIsGeneratingSample] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewPdfBase64, setPreviewPdfBase64] = useState('');
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,6 +123,7 @@ export default function DocumentsDashboard() {
   }, []);
 
   const loadDocTemplate = useCallback(async (docType: string) => {
+    setTemplatesLoaded(false);
     const supabase = createClient();
     try {
       const { data: templates } = await supabase
@@ -139,6 +142,9 @@ export default function DocumentsDashboard() {
       setSelectedFieldId(null);
     } catch (err) {
       console.error(err);
+      setFields(defaultDocFields);
+    } finally {
+      setTemplatesLoaded(true);
     }
   }, []);
 
@@ -292,8 +298,6 @@ export default function DocumentsDashboard() {
           body: JSON.stringify({
             studentId: st.id,
             documentType: designDocType,
-            fields,
-            backgroundUrl: bgUrl || undefined,
           }),
         });
 
@@ -322,7 +326,7 @@ export default function DocumentsDashboard() {
     }
 
     if (isSingle && results[0]?.success && results[0]?.url) {
-      window.open(results[0].url, '_blank');
+      window.open(`${results[0].url}?t=${Date.now()}`, '_blank');
       toast.success('Letter generated! Preview opened in new tab.');
     } else if (!isSingle) {
       const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -469,8 +473,24 @@ export default function DocumentsDashboard() {
                 </button>
               </div>
 
+              <input
+                type="text"
+                placeholder="Search by name or code..."
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-teal"
+              />
+
               <div className="max-h-[400px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                {students.map((st) => {
+                {students
+                  .filter((st) => {
+                    const q = studentSearch.toLowerCase();
+                    if (!q) return true;
+                    const name = st.application?.full_name?.toLowerCase() || '';
+                    const code = st.student_code?.toLowerCase() || '';
+                    return name.includes(q) || code.includes(q);
+                  })
+                  .map((st) => {
                   const app = st.application;
                   return (
                     <label
@@ -500,7 +520,7 @@ export default function DocumentsDashboard() {
                 variant="teal"
                 onClick={handleBulkGenerate}
                 isLoading={isBulkGenerating}
-                disabled={selectedIds.size === 0}
+                disabled={selectedIds.size === 0 || !templatesLoaded}
                 className="w-full font-bold py-3"
               >
                 {isBulkGenerating ? (
@@ -542,7 +562,7 @@ export default function DocumentsDashboard() {
                         <span className="text-green-400 ml-auto shrink-0">Done</span>
                         {r.url && (
                           <a
-                            href={r.url}
+                            href={`${r.url}?t=${Date.now()}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-brand-teal hover:underline shrink-0 ml-2"
@@ -598,7 +618,7 @@ export default function DocumentsDashboard() {
                         <td className="px-6 py-4 text-slate-400">{formatDate(doc.generated_at)}</td>
                         <td className="px-6 py-4 text-right">
                           <a
-                            href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/letters/${doc.document_url}`}
+                            href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/letters/${doc.document_url}?t=${new Date(doc.generated_at).getTime()}`}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 text-xs text-brand-teal hover:underline"

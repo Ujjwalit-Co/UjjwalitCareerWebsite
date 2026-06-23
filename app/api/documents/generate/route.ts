@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { generateLetterPDF, generateLetterPDFFromTemplate } from '@/lib/generators/documents';
+import { generateLetterPDFFromTemplate } from '@/lib/generators/documents';
 import { getTrackLabel } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
-    const { studentId, documentType, customText, backgroundUrl, fields } = await request.json();
+    const { studentId, documentType, backgroundUrl } = await request.json();
 
     if (!studentId || !documentType) {
       return NextResponse.json(
@@ -48,38 +48,29 @@ export async function POST(request: NextRequest) {
     const programName = getTrackLabel(app.internship_track);
     const durationLabel = student.opportunity?.duration_label || '6 Weeks';
 
-    let pdfBytes: Uint8Array;
+    // Always fetch the saved template from DB — never rely on client state
+    const { data: savedTemplate } = await supabase
+      .from('certificate_templates')
+      .select('fields, background_url')
+      .eq('name', `doc-${documentType}`)
+      .maybeSingle();
+    const templateFields = (savedTemplate?.fields || []) as any[];
 
-    if (fields) {
-      pdfBytes = await generateLetterPDFFromTemplate({
-        studentName: app.full_name,
-        studentCode: student.student_code,
-        college: app.college,
-        programName,
-        batchName: student.batch_name || '',
-        duration: durationLabel,
-        startDate,
-        endDate,
-        dateStr,
-        backgroundUrl,
-        fields,
-        verificationUrl: `${process.env.NEXT_PUBLIC_VERIFY_URL || 'https://verify.ujjwalit.co.in'}/${student.student_code}`,
-        qrUrl: 'https://careers.ujjwalit.co.in',
-      });
-    } else {
-      pdfBytes = await generateLetterPDF({
-        studentName: app.full_name,
-        studentCode: student.student_code,
-        college: app.college,
-        programName,
-        startDate,
-        endDate,
-        documentType,
-        dateStr,
-        customText,
-        backgroundUrl,
-      });
-    }
+    const pdfBytes = await generateLetterPDFFromTemplate({
+      studentName: app.full_name,
+      studentCode: student.student_code,
+      college: app.college,
+      programName,
+      batchName: student.batch_name || '',
+      duration: durationLabel,
+      startDate,
+      endDate,
+      dateStr,
+      backgroundUrl: backgroundUrl || savedTemplate?.background_url || undefined,
+      fields: templateFields,
+      verificationUrl: `${process.env.NEXT_PUBLIC_VERIFY_URL || 'https://verify.ujjwalit.co.in'}/${student.student_code}`,
+      qrUrl: 'https://careers.ujjwalit.co.in',
+    });
 
     const fileName = `${studentId}/${documentType}.pdf`;
 
