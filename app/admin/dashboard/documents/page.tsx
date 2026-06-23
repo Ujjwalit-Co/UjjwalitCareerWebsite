@@ -721,7 +721,16 @@ export default function DocumentsDashboard() {
                           </svg>
                         </div>
                       ) : (
-                        <span className="pointer-events-none">{field.placeholder}</span>
+                        <span
+                          className="pointer-events-none"
+                          style={{
+                            whiteSpace: 'pre-wrap',
+                            maxWidth: `${Math.max(100, designerWidth - field.x - 20)}px`,
+                            display: 'inline-block',
+                          }}
+                        >
+                          {field.placeholder}
+                        </span>
                       )}
                     </div>
                   );
@@ -825,11 +834,15 @@ export default function DocumentsDashboard() {
                   </div>
 
                   {selectedField.type === 'text' && (
-                    <Input
-                      label="Placeholder Text"
-                      value={selectedField.placeholder}
-                      onChange={(e) => handleUpdateSelectedField('placeholder', e.target.value)}
-                    />
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-semibold text-[#F5F5F5]">Placeholder Text</label>
+                      <textarea
+                        value={selectedField.placeholder}
+                        onChange={(e) => handleUpdateSelectedField('placeholder', e.target.value)}
+                        rows={4}
+                        className="w-full px-4 py-2.5 bg-brand-secondary border border-brand-border rounded-lg text-[#F5F5F5] placeholder-[#71717A] focus:outline-none transition-all duration-200 text-sm md:text-base focus:ring-2 focus:border-brand-blue focus:ring-brand-blue/20 resize-y font-mono"
+                      />
+                    </div>
                   )}
 
                   <div className="flex flex-col gap-1.5">

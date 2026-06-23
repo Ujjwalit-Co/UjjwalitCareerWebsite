@@ -40,6 +40,39 @@ interface TemplateLetterParams {
   verificationUrl?: string;
 }
 
+const toTitleCase = (str: string): string => {
+  return str.replace(/\b\w+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+};
+
+const wrapText = (text: string, font: any, fontSize: number, maxWidth: number): string[] => {
+  const lines: string[] = [];
+  const paragraphs = text.split('\n');
+
+  for (const paragraph of paragraphs) {
+    if (paragraph === '') {
+      lines.push('');
+      continue;
+    }
+    const words = paragraph.split(' ');
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+      if (testWidth > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+
+    if (currentLine) lines.push(currentLine);
+  }
+
+  return lines;
+};
+
 const hexToRgb = (hex: string) => {
   const cleanHex = hex.replace('#', '');
   const r = parseInt(cleanHex.substring(0, 2), 16) / 255;
@@ -170,12 +203,14 @@ export async function generateLetterPDFFromTemplate({
     }
   }
 
+  const lineHeightRatio = 1.4;
+
   for (const field of defaultFields) {
     if (field.type === 'qrcode') continue;
 
     let text = field.placeholder
-      .replace(/\{\{name\}\}/g, studentName)
-      .replace(/\{\{college\}\}/g, college)
+      .replace(/\{\{name\}\}/g, toTitleCase(studentName))
+      .replace(/\{\{college\}\}/g, toTitleCase(college))
       .replace(/\{\{program\}\}/g, programName)
       .replace(/\{\{code\}\}/g, studentCode)
       .replace(/\{\{date\}\}/g, dateStr)
@@ -195,20 +230,38 @@ export async function generateLetterPDFFromTemplate({
     }
 
     const size = field.fontSize * scaleY;
+    const lineHeight = size * lineHeightRatio;
     const color = hexToRgb(field.color || '#000000');
 
-    let x = field.x * scaleX;
-    const y = pageHeight - (field.y * scaleY) - size;
+    const getMaxWidth = () => {
+      const rightPad = 20;
+      if (field.textAlign === 'left') return (designerWidth - field.x - rightPad) * scaleX;
+      if (field.textAlign === 'center') return (Math.min(field.x, designerWidth - field.x) - 10) * 2 * scaleX;
+      return (field.x - rightPad) * scaleX;
+    };
 
-    if (field.textAlign === 'center') {
-      const textWidth = font.widthOfTextAtSize(text, size);
-      x = x - (textWidth / 2);
-    } else if (field.textAlign === 'right') {
-      const textWidth = font.widthOfTextAtSize(text, size);
-      x = x - textWidth;
+    const wrappedLines = wrapText(text, font, size, getMaxWidth());
+    const totalHeight = wrappedLines.length * lineHeight;
+    let baseY = pageHeight - (field.y * scaleY) - totalHeight;
+
+    for (const line of wrappedLines) {
+      if (line === '') {
+        baseY -= lineHeight;
+        continue;
+      }
+
+      let x = field.x * scaleX;
+      if (field.textAlign === 'center') {
+        const textWidth = font.widthOfTextAtSize(line, size);
+        x = x - (textWidth / 2);
+      } else if (field.textAlign === 'right') {
+        const textWidth = font.widthOfTextAtSize(line, size);
+        x = x - textWidth;
+      }
+
+      page.drawText(line, { x, y: baseY, size, font, color });
+      baseY -= lineHeight;
     }
-
-    page.drawText(text, { x, y, size, font, color });
   }
 
   return await pdfDoc.save();
@@ -286,9 +339,9 @@ export async function generateLetterPDF({
 
   yPos -= 25;
   page.drawText('Candidate Details:', { x: 40, y: yPos, size: 10, font: fontHelveticaBold });
-  page.drawText(`Name: ${studentName}`, { x: 40, y: yPos - 15, size: 10, font: fontHelvetica });
+  page.drawText(`Name: ${toTitleCase(studentName)}`, { x: 40, y: yPos - 15, size: 10, font: fontHelvetica });
   page.drawText(`Student Code: ${studentCode}`, { x: 40, y: yPos - 30, size: 10, font: fontHelvetica });
-  page.drawText(`College: ${college}`, { x: 40, y: yPos - 45, size: 10, font: fontHelvetica });
+  page.drawText(`College: ${toTitleCase(college)}`, { x: 40, y: yPos - 45, size: 10, font: fontHelvetica });
   page.drawText(`Track: ${programName}`, { x: 40, y: yPos - 60, size: 10, font: fontHelvetica });
 
   yPos -= 105;
@@ -338,8 +391,8 @@ export async function generateLetterPDF({
         continue;
       }
       const processedLine = line
-        .replace(/\{\{name\}\}/g, studentName)
-        .replace(/\{\{college\}\}/g, college)
+        .replace(/\{\{name\}\}/g, toTitleCase(studentName))
+        .replace(/\{\{college\}\}/g, toTitleCase(college))
         .replace(/\{\{program\}\}/g, programName)
         .replace(/\{\{startDate\}\}/g, startDate)
         .replace(/\{\{endDate\}\}/g, endDate);
@@ -347,7 +400,7 @@ export async function generateLetterPDF({
       yPos -= 10;
     }
   } else if (documentType === 'acceptance') {
-    writeParagraph(`Dear ${studentName},`);
+    writeParagraph(`Dear ${toTitleCase(studentName)},`);
     yPos -= 10;
     writeParagraph(`Following your application and review process, we are pleased to offer you an internship position as a Software Engineering Intern specializing in ${programName} with Ujjwalit Technologies.`);
     yPos -= 10;
@@ -357,7 +410,7 @@ export async function generateLetterPDF({
     yPos -= 10;
     writeParagraph('We look forward to having you work with our technology group.');
   } else if (documentType === 'onboarding') {
-    writeParagraph(`Dear ${studentName},`);
+    writeParagraph(`Dear ${toTitleCase(studentName)},`);
     yPos -= 10;
     writeParagraph(`We welcome you to Ujjwalit Technologies. We are excited to verify your registration fee payment and officially enroll you in our upcoming batch beginning ${startDate}.`);
     yPos -= 10;
@@ -373,7 +426,7 @@ export async function generateLetterPDF({
   } else if (documentType === 'completion') {
     writeParagraph('TO WHOM IT MAY CONCERN');
     yPos -= 15;
-    writeParagraph(`This is to certify that ${studentName}, a student of ${college}, has successfully completed their software engineering training internship at Ujjwalit Technologies in the ${programName} track.`);
+    writeParagraph(`This is to certify that ${toTitleCase(studentName)}, a student of ${toTitleCase(college)}, has successfully completed their software engineering training internship at Ujjwalit Technologies in the ${programName} track.`);
     yPos -= 10;
     writeParagraph(`The internship commenced on ${startDate} and concluded on ${endDate}.`);
     yPos -= 10;
@@ -383,7 +436,7 @@ export async function generateLetterPDF({
   } else {
     writeParagraph('TO WHOM IT MAY CONCERN');
     yPos -= 15;
-    writeParagraph(`I am writing to highly recommend ${studentName} for software engineering roles. They interned with the engineering department at Ujjwalit Technologies as a specialized ${programName} developer from ${startDate} to ${endDate}.`);
+    writeParagraph(`I am writing to highly recommend ${toTitleCase(studentName)} for software engineering roles. They interned with the engineering department at Ujjwalit Technologies as a specialized ${programName} developer from ${startDate} to ${endDate}.`);
     yPos -= 10;
     writeParagraph('During the training tenure, the candidate demonstrated outstanding coding capabilities, modular architecture implementation habits, and quick adoption of Next.js, Supabase, and TypeScript features.');
     yPos -= 10;

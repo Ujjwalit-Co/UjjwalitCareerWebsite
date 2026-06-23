@@ -51,6 +51,41 @@ export async function generateCertificatePDF({
   const scaleX = pageWidth / designerWidth;
   const scaleY = pageHeight / designerHeight;
 
+  // Helper to title-case a string
+  const toTitleCase = (str: string): string => {
+    return str.replace(/\b\w+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+  };
+
+  // Helper to wrap text into lines based on max width
+  const wrapText = (text: string, font: any, fontSize: number, maxWidth: number): string[] => {
+    const lines: string[] = [];
+    const paragraphs = text.split('\n');
+
+    for (const paragraph of paragraphs) {
+      if (paragraph === '') {
+        lines.push('');
+        continue;
+      }
+      const words = paragraph.split(' ');
+      let currentLine = '';
+
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+        if (testWidth > maxWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+
+      if (currentLine) lines.push(currentLine);
+    }
+
+    return lines;
+  };
+
   // Helper to parse hex color to rgb
   const hexToRgb = (hex: string) => {
     const cleanHex = hex.replace('#', '');
@@ -200,12 +235,14 @@ export async function generateCertificatePDF({
     { id: '6', type: 'text', placeholder: 'Issued Date: {{date}}', x: 60, y: 550, fontSize: 10, fontFamily: 'Mono', fontWeight: 'normal', color: '#888888', textAlign: 'left' },
   ];
 
+  const lineHeightRatio = 1.4;
+
   for (const field of fields) {
     if (field.type === 'qrcode') continue; // Handled separately
 
     // Replace text tokens
     let text = field.placeholder
-      .replace('{{name}}', studentName)
+      .replace('{{name}}', toTitleCase(studentName))
       .replace('{{program}}', programName)
       .replace('{{id}}', certificateId)
       .replace('{{date}}', issueDate);
@@ -226,32 +263,38 @@ export async function generateCertificatePDF({
     }
 
     const size = field.fontSize * scaleY;
+    const lineHeight = size * lineHeightRatio;
     const color = hexToRgb(field.color || '#000000');
 
-    // Calculate final PDF coordinates
-    let x = field.x * scaleX;
-    // PDF coordinates start at bottom-left, but designer starts at top-left.
-    // pdf-lib uses a bottom-left origin and text is drawn from its baseline.
-    // We subtract the text size so the top of the text aligns with the designer's y-coordinate.
-    const y = pageHeight - (field.y * scaleY) - size;
+    const getMaxWidth = () => {
+      const rightPad = 20;
+      if (field.textAlign === 'left') return (designerWidth - field.x - rightPad) * scaleX;
+      if (field.textAlign === 'center') return (Math.min(field.x, designerWidth - field.x) - 10) * 2 * scaleX;
+      return (field.x - rightPad) * scaleX;
+    };
 
-    // Adjust x coordinate for text alignment if centered
-    if (field.textAlign === 'center') {
-      const textWidth = font.widthOfTextAtSize(text, size);
-      // Center the text around the designer x point
-      x = x - (textWidth / 2);
-    } else if (field.textAlign === 'right') {
-      const textWidth = font.widthOfTextAtSize(text, size);
-      x = x - textWidth;
+    const wrappedLines = wrapText(text, font, size, getMaxWidth());
+    const totalHeight = wrappedLines.length * lineHeight;
+    let baseY = pageHeight - (field.y * scaleY) - totalHeight;
+
+    for (const line of wrappedLines) {
+      if (line === '') {
+        baseY -= lineHeight;
+        continue;
+      }
+
+      let x = field.x * scaleX;
+      if (field.textAlign === 'center') {
+        const textWidth = font.widthOfTextAtSize(line, size);
+        x = x - (textWidth / 2);
+      } else if (field.textAlign === 'right') {
+        const textWidth = font.widthOfTextAtSize(line, size);
+        x = x - textWidth;
+      }
+
+      page.drawText(line, { x, y: baseY, size, font, color });
+      baseY -= lineHeight;
     }
-
-    page.drawText(text, {
-      x,
-      y,
-      size,
-      font,
-      color,
-    });
   }
 
   // 5. Save and return bytes
