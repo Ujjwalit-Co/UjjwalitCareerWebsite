@@ -1,15 +1,25 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ArrowRight, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const scrollToPrograms = useCallback(() => {
+    const el = document.getElementById('programs');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      router.push('/careers#programs');
+    }
+  }, [router]);
 
   const links = [
     { href: '#programs', label: 'Programs' },
@@ -45,11 +55,9 @@ export const Navbar = () => {
         </div>
 
         <div className="hidden md:block">
-          <Link href={getHref('#programs')}>
-            <Button size="sm" className="gap-2">
-              Apply Now <ArrowRight size={15} />
-            </Button>
-          </Link>
+          <Button size="sm" className="gap-2" onClick={scrollToPrograms}>
+            Apply Now <ArrowRight size={15} />
+          </Button>
         </div>
 
         <button
@@ -74,11 +82,11 @@ export const Navbar = () => {
                 {link.label}
               </Link>
             ))}
-            <Link href={getHref('#programs')} onClick={() => setIsOpen(false)} className="pt-2">
-              <Button className="w-full gap-2">
+            <div className="pt-2">
+              <Button className="w-full gap-2" onClick={() => { setIsOpen(false); scrollToPrograms(); }}>
                 Apply Now <ArrowRight size={15} />
               </Button>
-            </Link>
+            </div>
           </div>
         </div>
       )}

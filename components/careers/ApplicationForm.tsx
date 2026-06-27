@@ -305,8 +305,39 @@ export const ApplicationForm = ({
           <motion.div key="step5" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center py-8 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-brand-success/30 bg-brand-success/10 text-brand-success"><CheckCircle2 size={34} /></div>
             <h2 className="mt-6 text-3xl font-extrabold text-[#F5F5F5]">Application received</h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">Thanks, <b>{formData.fullName}</b>. Ujjwalit will review your application for <b>{selectedOpportunity?.title}</b> and contact you at <b>{formData.email}</b>.</p>
-            <Button variant="outline" onClick={() => router.push('/careers')} className="mt-6 gap-2"><FileText size={16} /> Back to Program</Button>
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">Thanks, <b>{formData.fullName}</b>. Your application for <b>{selectedOpportunity?.title}</b> has been received.</p>
+
+            <div className="mt-6 w-full rounded-lg border border-brand-orange/30 bg-brand-orange/5 p-5 text-left">
+              <h3 className="text-lg font-bold text-[#F5F5F5]">Mandatory: Complete the Registration Form</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                To process your application, you <strong className="text-brand-orange">must</strong> fill out the official registration form.
+              </p>
+              <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row">
+                <div className="flex flex-col items-center gap-2">
+                  <img
+                    src="/QR.jpeg"
+                    alt="Payment QR Code"
+                    className="h-32 w-32 rounded-lg border border-slate-700"
+                  />
+                  <span className="text-[10px] text-slate-500">Scan to pay</span>
+                </div>
+                <div className="flex flex-1 flex-col gap-3">
+                  <a
+                    href="https://forms.gle/hGeRn2mgTfKwrsdf9"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-orange px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-orange/90"
+                  >
+                    Fill Mandatory Registration Form
+                  </a>
+                  <p className="text-xs leading-5 text-slate-500">
+                    You can pay using the QR code or find the payment link inside the Google Form to complete your registration.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Button variant="outline" onClick={() => router.push('/careers')} className="mt-6 gap-2"><FileText size={16} /> Back to Programs</Button>
           </motion.div>
         )}
       </AnimatePresence>
