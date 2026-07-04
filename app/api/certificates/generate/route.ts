@@ -69,13 +69,20 @@ export async function POST(request: NextRequest) {
       certificateId = existingCert.certificate_id;
       verificationHash = existingCert.verification_hash;
     } else {
-      // Generate new credentials
-      const { count, error: countError } = await supabase
+      // Generate new credentials — fetch max index to avoid collisions
+      const { data: maxRow, error: maxErr } = await supabase
         .from('certificates')
-        .select('*', { count: 'exact', head: true });
+        .select('certificate_id')
+        .order('issued_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (countError) throw countError;
-      const nextIndex = (count || 0) + 1;
+      let nextIndex = 1;
+      if (maxRow?.certificate_id) {
+        const parts = maxRow.certificate_id.split('-');
+        const lastNum = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastNum)) nextIndex = lastNum + 1;
+      }
       certificateId = generateCertificateId(app.internship_track, currentYear, nextIndex);
       verificationHash = generateVerificationHash();
     }

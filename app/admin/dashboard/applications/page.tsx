@@ -108,24 +108,36 @@ export default function ApplicationsManagement() {
     setIsAccepting(true);
 
     try {
-      // 1. Get next student index for the student code
+      // 1. Insert Student record with retry on unique constraint violation
       const currentYear = new Date().getFullYear();
-      const { count, error: countError } = await supabase
+      const { data: maxRow } = await supabase
         .from('students')
-        .select('*', { count: 'exact', head: true });
+        .select('student_code')
+        .order('joined_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (countError) throw countError;
-      const nextIndex = (count || 0) + 1;
-      const studentCode = generateStudentCode(currentYear, nextIndex);
+      let nextIndex = 1;
+      if (maxRow?.student_code) {
+        const parts = maxRow.student_code.split('-');
+        const lastNum = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastNum)) nextIndex = lastNum + 1;
+      }
+      const maxRetries = 5;
 
-      // 2. Insert Student record
-      const { error: studentError } = await supabase.from('students').insert({
-        application_id: selectedApp.id,
-        student_code: studentCode,
-        batch_name: batchName,
-      });
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const studentCode = generateStudentCode(currentYear, nextIndex);
+        const { error: studentError } = await supabase.from('students').insert({
+          application_id: selectedApp.id,
+          student_code: studentCode,
+          batch_name: batchName,
+        });
 
-      if (studentError) throw studentError;
+        if (!studentError) break;
+        if (studentError.code !== '23505') throw studentError;
+        nextIndex++;
+        if (attempt === maxRetries - 1) throw new Error('Failed to generate unique student code after retries');
+      }
 
       // 3. Update application status
       await handleStatusChange(selectedApp.id, 'accepted', remarks);

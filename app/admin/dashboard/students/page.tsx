@@ -14,6 +14,7 @@ import {
   Users,
   Search,
   Edit2,
+  Trash2,
   Save,
   CheckCircle,
   XCircle,
@@ -33,6 +34,7 @@ export default function StudentsManagement() {
   const [editingStudent, setEditingStudent] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -124,6 +126,26 @@ export default function StudentsManagement() {
       toast.error(err.message || 'Failed to send email');
     } finally {
       setSendingEmail(null);
+    }
+  };
+
+  const handleDeleteStudent = async (student: any) => {
+    const app = student.application;
+    const confirmMessage = `Delete student ${app?.full_name} (${student.student_code})?\n\nThis will also delete associated documents and certificates. This cannot be undone.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setDeletingId(student.id);
+    const supabase = createClient();
+    try {
+      const { error } = await supabase.from('students').delete().eq('id', student.id);
+      if (error) throw error;
+      toast.success(`Student ${student.student_code} deleted`);
+      fetchStudents();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to delete student');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -238,14 +260,25 @@ export default function StudentsManagement() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditOpen(st)}
-                          className="text-xs text-slate-450 hover:text-white hover:bg-slate-900 p-2 rounded-lg"
-                        >
-                          <Edit2 size={16} />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditOpen(st)}
+                            className="text-xs text-slate-450 hover:text-white hover:bg-slate-900 p-2 rounded-lg"
+                          >
+                            <Edit2 size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteStudent(st)}
+                            disabled={deletingId === st.id}
+                            className="text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded-lg"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
