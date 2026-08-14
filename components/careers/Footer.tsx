@@ -10,7 +10,7 @@ export const Footer = () => {
   const links = [
     { href: 'https://ujjwalit.co.in', label: 'Company', external: true },
     { href: '/careers#programs', label: 'Programs' },
-    { href: '/verify', label: 'Verification' },
+    { href: process.env.NEXT_PUBLIC_VERIFY_URL || 'https://verify.ujjwalit.co.in', label: 'Verification', external: true },
     { href: 'mailto:ujjwalit.p@gmail.com', label: 'Contact' },
   ];
 

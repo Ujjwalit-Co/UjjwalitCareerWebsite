@@ -1,4 +1,5 @@
 ﻿import { type ClassValue, clsx } from 'clsx';
+import type { CertificateType } from '@/lib/database.types';
 
 // Utility for conditionally joining classNames
 export function cn(...inputs: ClassValue[]) {
@@ -10,14 +11,38 @@ export function generateStudentCode(year: number, index: number): string {
   return `STU-${year}-${String(index).padStart(3, '0')}`;
 }
 
-// Generate certificate ID: UJ-{TRACK}-{YEAR}-{NUMBER}
+// Generate student profile slug: UJP-{YEAR}-{NUMBER}
+export function generateProfileSlug(year: number, index: number): string {
+  return `UJP-${year}-${String(index).padStart(4, '0')}`;
+}
+
+// Generate certificate ID: UJ-{TRACK}-[{TYPE}-]{YEAR}-{NUMBER}
+// e.g. UJ-WD-2026-001 (completion), UJ-WD-A-2026-001 (achievement), UJ-WD-P-2026-001 (participation)
 export function generateCertificateId(
   track: 'web-development' | 'fullstack-ai',
   year: number,
-  index: number
+  index: number,
+  type: CertificateType = 'completion'
 ): string {
   const trackCode = track === 'web-development' ? 'WD' : 'AI';
-  return `UJ-${trackCode}-${year}-${String(index).padStart(3, '0')}`;
+  const typeCode = type === 'completion' ? '' : `-${type === 'achievement' ? 'A' : 'P'}`;
+  return `UJ-${trackCode}${typeCode}-${year}-${String(index).padStart(3, '0')}`;
+}
+
+// Human label for a certificate type
+export function getCertificateTypeLabel(type: string): string {
+  switch (type) {
+    case 'completion':
+      return 'Certificate of Completion';
+    case 'achievement':
+      return 'Statement of Achievement';
+    case 'participation':
+      return 'Certificate of Participation';
+    case 'none':
+      return 'Not Eligible';
+    default:
+      return type;
+  }
 }
 
 // Format date for display

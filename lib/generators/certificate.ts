@@ -1,5 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { generateQRCode } from './qrcode';
+import { isCustomFont, loadCustomFont, fontkit } from './fonts';
 
 interface FieldConfig {
   id: string;
@@ -20,6 +21,11 @@ interface GenerateParams {
   certificateId: string;
   issueDate: string;
   verificationUrl: string;
+  qrTargetUrl?: string; // what the QR encodes; defaults to verificationUrl
+  college?: string;
+  batchName?: string;
+  studentCode?: string;
+  attendance?: number | string;
   templateBackgroundUrl?: string; // base64 or public url to fetch image from
   templateFields?: FieldConfig[];
 }
@@ -33,11 +39,17 @@ export async function generateCertificatePDF({
   certificateId,
   issueDate,
   verificationUrl,
+  qrTargetUrl,
+  college,
+  batchName,
+  studentCode,
+  attendance,
   templateBackgroundUrl,
   templateFields,
 }: GenerateParams): Promise<Uint8Array> {
   // 1. Create a new PDF document or load existing template background
   const pdfDoc = await PDFDocument.create();
+  pdfDoc.registerFontkit(fontkit as any);
   
   // Standard A4 landscape dimensions (in points): 841.89 x 595.28
   const pageWidth = 841.89;
@@ -95,36 +107,22 @@ export async function generateCertificatePDF({
     return rgb(isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b);
   };
 
-  // Cache for loaded custom fonts to avoid fetching the same font multiple times
+  // Cache for embedded custom fonts
   const customFontsCache: Record<string, any> = {};
 
-  const embedCustomFont = async (fontName: string) => {
-    if (customFontsCache[fontName]) return customFontsCache[fontName];
+  const embedCustomFont = async (fontName: string, fontWeight: string) => {
+    const cacheKey = `${fontName}:${fontWeight}`;
+    if (customFontsCache[cacheKey]) return customFontsCache[cacheKey];
 
-    let fontUrl = '';
-    if (fontName === 'Inter') {
-      fontUrl = 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp5GP37T.ttf';
-    } else if (fontName === 'Montserrat') {
-      fontUrl = 'https://fonts.gstatic.com/s/montserrat/v25/JTUSjIg1_i6t8kCHKm459Wlhyw.ttf';
-    } else if (fontName === 'Playfair Display') {
-      fontUrl = 'https://fonts.gstatic.com/s/playfairdisplay/v30/nuFvD-vYSZ2xE2vV2oOp3VfeFMR2S7dmGWQ36qEL.ttf';
-    } else if (fontName === 'Great Vibes') {
-      fontUrl = 'https://fonts.gstatic.com/s/greatvibes/v14/RWmMoKCc1SVt4YhKm20B32M.ttf';
-    } else if (fontName === 'Alex Brush') {
-      fontUrl = 'https://fonts.gstatic.com/s/alexbrush/v22/SZuzQZILZZ3WnS2_46937A.ttf';
-    }
-
-    if (!fontUrl) return null;
+    const fontBytes = loadCustomFont(fontName, fontWeight);
+    if (!fontBytes) return null;
 
     try {
-      const res = await fetch(fontUrl);
-      if (!res.ok) throw new Error(`Font fetch failed: ${res.status}`);
-      const arrayBuffer = await res.arrayBuffer();
-      const embeddedFont = await pdfDoc.embedFont(arrayBuffer);
-      customFontsCache[fontName] = embeddedFont;
+      const embeddedFont = await pdfDoc.embedFont(fontBytes);
+      customFontsCache[cacheKey] = embeddedFont;
       return embeddedFont;
     } catch (err) {
-      console.error(`Error loading custom font ${fontName} from ${fontUrl}:`, err);
+      console.error(`Error embedding custom font ${fontName}:`, err);
       return null;
     }
   };
@@ -186,11 +184,11 @@ export async function generateCertificatePDF({
     });
   }
 
-  // 3. Draw QR Code pointing to verification URL (Only if not explicitly removed from template)
+  // 3. Draw QR Code pointing to the target URL (profile page by default)
   const hasQrField = !templateFields || templateFields.some((f) => f.type === 'qrcode');
   if (hasQrField) {
     try {
-      const qrDataUrl = await generateQRCode(verificationUrl);
+      const qrDataUrl = await generateQRCode(qrTargetUrl || verificationUrl);
       const qrClean = qrDataUrl.replace(/^data:image\/png;base64,/, '');
       const qrBytes = Buffer.from(qrClean, 'base64');
       const qrImage = await pdfDoc.embedPng(qrBytes);
@@ -245,16 +243,25 @@ export async function generateCertificatePDF({
     if (field.type === 'qrcode') continue; // Handled separately
 
     // Replace text tokens
-    let text = field.placeholder
-      .replace('{{name}}', toTitleCase(studentName))
-      .replace('{{program}}', programName)
-      .replace('{{id}}', certificateId)
-      .replace('{{date}}', issueDate);
+    const text = field.placeholder
+      .replace(/\{\{name\}\}/g, toTitleCase(studentName))
+      .replace(/\{\{program\}\}/g, programName)
+      .replace(/\{\{track\}\}/g, programName)
+      .replace(/\{\{track_name\}\}/g, programName)
+      .replace(/\{\{id\}\}/g, certificateId)
+      .replace(/\{\{date\}\}/g, issueDate)
+      .replace(/\{\{issue_date\}\}/g, issueDate)
+      .replace(/\{\{college\}\}/g, toTitleCase(college || ''))
+      .replace(/\{\{batch\}\}/g, batchName || '')
+      .replace(/\{\{batch_name\}\}/g, batchName || '')
+      .replace(/\{\{student_code\}\}/g, studentCode || '')
+      .replace(/\{\{code\}\}/g, studentCode || '')
+      .replace(/\{\{attendance\}\}/g, String(attendance ?? ''));
 
     // Choose font
     let font = standardFonts.Sans;
-    if (['Inter', 'Montserrat', 'Playfair Display', 'Great Vibes', 'Alex Brush'].includes(field.fontFamily)) {
-      const loadedFont = await embedCustomFont(field.fontFamily);
+    if (isCustomFont(field.fontFamily)) {
+      const loadedFont = await embedCustomFont(field.fontFamily, field.fontWeight);
       if (loadedFont) {
         font = loadedFont;
       }

@@ -1,5 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { generateQRCode } from './qrcode';
+import { isCustomFont, loadCustomFont, fontkit } from './fonts';
 
 export interface DocFieldConfig {
   id: string;
@@ -84,35 +85,24 @@ const hexToRgb = (hex: string) => {
   return rgb(isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b);
 };
 
-const customFontsCache: Record<string, any> = {};
+const embedCustomFont = async (
+  pdfDoc: PDFDocument,
+  fontName: string,
+  fontWeight: string,
+  customFontsCache: Record<string, any>
+) => {
+  const cacheKey = `${fontName}:${fontWeight}`;
+  if (customFontsCache[cacheKey]) return customFontsCache[cacheKey];
 
-const embedCustomFont = async (pdfDoc: PDFDocument, fontName: string) => {
-  if (customFontsCache[fontName]) return customFontsCache[fontName];
-
-  let fontUrl = '';
-  if (fontName === 'Inter') {
-    fontUrl = 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp5GP37T.ttf';
-  } else if (fontName === 'Montserrat') {
-    fontUrl = 'https://fonts.gstatic.com/s/montserrat/v25/JTUSjIg1_i6t8kCHKm459Wlhyw.ttf';
-  } else if (fontName === 'Playfair Display') {
-    fontUrl = 'https://fonts.gstatic.com/s/playfairdisplay/v30/nuFvD-vYSZ2xE2vV2oOp3VfeFMR2S7dmGWQ36qEL.ttf';
-  } else if (fontName === 'Great Vibes') {
-    fontUrl = 'https://fonts.gstatic.com/s/greatvibes/v14/RWmMoKCc1SVt4YhKm20B32M.ttf';
-  } else if (fontName === 'Alex Brush') {
-    fontUrl = 'https://fonts.gstatic.com/s/alexbrush/v22/SZuzQZILZZ3WnS2_46937A.ttf';
-  }
-
-  if (!fontUrl) return null;
+  const fontBytes = loadCustomFont(fontName, fontWeight);
+  if (!fontBytes) return null;
 
   try {
-    const res = await fetch(fontUrl);
-    if (!res.ok) throw new Error(`Font fetch failed: ${res.status}`);
-    const arrayBuffer = await res.arrayBuffer();
-    const embeddedFont = await pdfDoc.embedFont(arrayBuffer);
-    customFontsCache[fontName] = embeddedFont;
+    const embeddedFont = await pdfDoc.embedFont(fontBytes);
+    customFontsCache[cacheKey] = embeddedFont;
     return embeddedFont;
   } catch (err) {
-    console.error(`Error loading custom font ${fontName}:`, err);
+    console.error(`Error embedding custom font ${fontName}:`, err);
     return null;
   }
 };
@@ -133,6 +123,7 @@ export async function generateLetterPDFFromTemplate({
   qrUrl,
 }: TemplateLetterParams): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
+  pdfDoc.registerFontkit(fontkit as any);
 
   const pageWidth = 595.28;
   const pageHeight = 841.89;
@@ -176,6 +167,7 @@ export async function generateLetterPDFFromTemplate({
     SansBold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
     Mono: await pdfDoc.embedFont(StandardFonts.Courier),
   };
+  const customFontsCache: Record<string, any> = {};
 
   const defaultFields: DocFieldConfig[] = fields && fields.length > 0 ? fields : [
     { id: '1', type: 'text', placeholder: 'UJJWALIT TECHNOLOGIES PVT. LTD.', x: 60, y: 30, fontSize: 14, fontFamily: 'Sans', fontWeight: 'bold', color: '#0B1D3F', textAlign: 'left' },
@@ -234,8 +226,8 @@ export async function generateLetterPDFFromTemplate({
       .replace(/\{\{endDate\}\}/g, endDate);
 
     let font = standardFonts.Sans;
-    if (['Inter', 'Montserrat', 'Playfair Display', 'Great Vibes', 'Alex Brush'].includes(field.fontFamily)) {
-      const loadedFont = await embedCustomFont(pdfDoc, field.fontFamily);
+    if (isCustomFont(field.fontFamily)) {
+      const loadedFont = await embedCustomFont(pdfDoc, field.fontFamily, field.fontWeight, customFontsCache);
       if (loadedFont) font = loadedFont;
     } else if (field.fontFamily.includes('Serif')) {
       font = field.fontWeight === 'bold' ? standardFonts.SerifBold : standardFonts.Serif;

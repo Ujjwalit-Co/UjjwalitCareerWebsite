@@ -23,6 +23,8 @@ import {
   Move,
   Upload,
   Eye,
+  Copy,
+  LayoutTemplate,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal } from '@/components/ui/modal';
@@ -42,13 +44,17 @@ interface TemplateField {
 }
 
 export default function CertificatesDashboard() {
-  const [activeTab, setActiveTab] = useState<'registry' | 'designer'>('registry');
+  const [activeTab, setActiveTab] = useState<'registry' | 'designer' | 'templates'>('registry');
   const [loading, setLoading] = useState(true);
   
   // Registry States
   const [eligibleStudents, setEligibleStudents] = useState<any[]>([]);
   const [issuedCerts, setIssuedCerts] = useState<any[]>([]);
   const [isIssuing, setIsIssuing] = useState<string | null>(null);
+  const [issueModalOpen, setIssueModalOpen] = useState(false);
+  const [issueStudent, setIssueStudent] = useState<any | null>(null);
+  const [issueForceRegenerate, setIssueForceRegenerate] = useState(false);
+  const [issueTemplateId, setIssueTemplateId] = useState<string>('');
   
   // Designer States
   const [bgUrl, setBgUrl] = useState('');
@@ -57,6 +63,12 @@ export default function CertificatesDashboard() {
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingSample, setIsGeneratingSample] = useState(false);
+
+  // Template library states
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateType, setNewTemplateType] = useState<'completion' | 'participation' | 'custom'>('completion');
 
   // Opportunities state for template-to-event association
   const [opportunities, setOpportunities] = useState<any[]>([]);
@@ -81,6 +93,7 @@ export default function CertificatesDashboard() {
           id,
           student_code,
           batch_name,
+          certificate_type,
           application:applications (
             full_name,
             college,
@@ -105,6 +118,7 @@ export default function CertificatesDashboard() {
             id,
             student_code,
             batch_name,
+            certificate_type,
             application:applications (
               full_name,
               internship_track
@@ -133,11 +147,21 @@ export default function CertificatesDashboard() {
         .order('display_order', { ascending: true });
       if (data) {
         setOpportunities(data);
-        if (data.length > 0) {
-          setSelectedOpportunityId(data[0].id);
-          loadOpportunityTemplate(data[0].id, data);
-        }
       }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadTemplates = async () => {
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase
+        .from('certificate_templates')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setTemplates(data || []);
     } catch (err) {
       console.error(err);
     }
@@ -160,12 +184,16 @@ export default function CertificatesDashboard() {
           setBgUrl(template.background_url || '');
           setFields(template.fields || []);
           setSelectedFieldId(null);
+          setSelectedTemplateId(template.id);
+          setNewTemplateName(template.name);
+          setNewTemplateType(template.template_type || 'custom');
           return;
         }
       }
 
       // Default blank template config
       setBgUrl('');
+      setSelectedTemplateId('');
       setFields([
         { id: '1', type: 'text', label: 'Title text', placeholder: 'CERTIFICATE OF TRAINING', x: 400, y: 140, fontSize: 28, fontFamily: 'Serif', fontWeight: 'bold', color: '#E8822A', textAlign: 'center' },
         { id: '2', type: 'text', label: 'Presenter line', placeholder: 'This is proudly presented to', x: 400, y: 220, fontSize: 14, fontFamily: 'Sans', fontWeight: 'normal', color: '#64748B', textAlign: 'center' },
@@ -184,12 +212,81 @@ export default function CertificatesDashboard() {
 
   const handleOpportunityChange = (oppId: string) => {
     setSelectedOpportunityId(oppId);
-    loadOpportunityTemplate(oppId);
+    const opp = opportunities.find(o => o.id === oppId);
+    if (!opp?.certificate_template_id) {
+      // No linked template: load a blank canvas unless editing a specific saved template
+      if (!selectedTemplateId) loadOpportunityTemplate(oppId);
+      return;
+    }
+    // Linked template: load it into the designer
+    const linked = templates.find(t => t.id === opp.certificate_template_id);
+    if (linked) {
+      selectTemplateById(linked.id);
+    } else {
+      loadOpportunityTemplate(oppId);
+    }
+  };
+
+  const selectTemplateById = (id: string) => {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    setSelectedTemplateId(id);
+    setNewTemplateName(t.name);
+    setNewTemplateType(t.template_type || 'custom');
+    setBgUrl(t.background_url || '');
+    setFields(t.fields || []);
+    setSelectedFieldId(null);
+  };
+
+  const duplicateTemplate = async (id: string) => {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const supabase = createClient();
+    try {
+      const { error } = await supabase.from('certificate_templates').insert({
+        name: `${t.name} (Copy)`,
+        template_type: t.template_type || 'custom',
+        description: t.description,
+        background_url: t.background_url,
+        fields: t.fields,
+        width: t.width,
+        height: t.height,
+        is_default: false,
+      });
+      if (error) throw error;
+      toast.success('Template duplicated');
+      loadTemplates();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to duplicate template');
+    }
+  };
+
+  const deleteTemplate = async (id: string) => {
+    const confirmDelete = window.confirm(
+      'Delete this template permanently? Certificates and opportunities using it will fall back to the default layout.'
+    );
+    if (!confirmDelete) return;
+    const supabase = createClient();
+    try {
+      const { error } = await supabase.from('certificate_templates').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Template deleted');
+      if (selectedTemplateId === id) {
+        setSelectedTemplateId('');
+        setBgUrl('');
+        setFields([]);
+      }
+      loadTemplates();
+      loadOpportunities();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete template');
+    }
   };
 
   useEffect(() => {
     loadRegistryData();
     loadOpportunities();
+    loadTemplates();
 
     // Dynamically inject Google Fonts for visual designer preview
     const link = document.createElement('link');
@@ -201,7 +298,17 @@ export default function CertificatesDashboard() {
     };
   }, []);
 
-  const handleIssueCertificate = async (studentId: string, forceRegenerate = false) => {
+  const openIssueModal = (student: any, forceRegenerate = false) => {
+    // Preselect the template matching the student's certificate type, else the default template
+    const matching = templates.find(t => t.template_type === student.certificate_type);
+    const fallback = templates.find(t => t.is_default);
+    setIssueTemplateId(matching?.id || fallback?.id || '');
+    setIssueStudent(student);
+    setIssueForceRegenerate(forceRegenerate);
+    setIssueModalOpen(true);
+  };
+
+  const handleIssueCertificate = async (studentId: string, forceRegenerate = false, templateId?: string) => {
     setIsIssuing(studentId);
     const supabase = createClient();
     try {
@@ -210,7 +317,7 @@ export default function CertificatesDashboard() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ studentId, forceRegenerate }),
+        body: JSON.stringify({ studentId, forceRegenerate, templateId }),
       });
 
       if (!res.ok) {
@@ -237,6 +344,7 @@ export default function CertificatesDashboard() {
             id,
             student_code,
             batch_name,
+            certificate_type,
             application:applications (
               full_name,
               internship_track
@@ -378,8 +486,8 @@ export default function CertificatesDashboard() {
   };
 
   const handleSaveTemplate = async () => {
-    if (!selectedOpportunityId) {
-      toast.error('Please select an opportunity to link this template to.');
+    if (!selectedTemplateId && !newTemplateName.trim()) {
+      toast.error('Please provide a template name (or select a saved template).');
       return;
     }
 
@@ -387,8 +495,7 @@ export default function CertificatesDashboard() {
     const supabase = createClient();
     try {
       const opp = opportunities.find(o => o.id === selectedOpportunityId);
-      const selectedOppName = opp?.title || 'Opportunity';
-      let templateId = opp?.certificate_template_id;
+      let templateId = selectedTemplateId;
 
       if (templateId) {
         // Update existing template
@@ -405,11 +512,12 @@ export default function CertificatesDashboard() {
 
         if (tErr) throw tErr;
       } else {
-        // Insert new template
+        // Insert new template into the library
         const { data: newTemplate, error: tErr } = await supabase
           .from('certificate_templates')
           .insert({
-            name: `${selectedOppName} Certificate Template`,
+            name: newTemplateName.trim(),
+            template_type: newTemplateType,
             background_url: bgUrl || null,
             fields: fields as any,
             width: designerWidth,
@@ -420,8 +528,11 @@ export default function CertificatesDashboard() {
 
         if (tErr) throw tErr;
         templateId = newTemplate.id;
+        setSelectedTemplateId(templateId);
+      }
 
-        // Link new template to opportunity record
+      // Link the saved template to the selected opportunity if one is chosen
+      if (templateId && selectedOpportunityId) {
         const { error: linkErr } = await supabase
           .from('opportunities')
           .update({ certificate_template_id: templateId })
@@ -429,13 +540,13 @@ export default function CertificatesDashboard() {
 
         if (linkErr) throw linkErr;
 
-        // Update local opportunities state with linked template
         setOpportunities(prev =>
           prev.map(o => o.id === selectedOpportunityId ? { ...o, certificate_template_id: templateId } : o)
         );
       }
 
-      toast.success(`Designer template saved and updated for ${selectedOppName}!`);
+      toast.success(opp ? `Template saved${opp.title ? ` and linked to ${opp.title}` : ''}!` : 'Template saved!');
+      loadTemplates();
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Failed to save designer template');
@@ -519,6 +630,16 @@ export default function CertificatesDashboard() {
           >
             <Layout size={14} /> Design Template
           </button>
+          <button
+            onClick={() => setActiveTab('templates')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+              activeTab === 'templates'
+                ? 'bg-brand-orange text-white'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <LayoutTemplate size={14} /> Templates
+          </button>
         </div>
       </div>
 
@@ -556,7 +677,7 @@ export default function CertificatesDashboard() {
                             <Button
                               variant="teal"
                               size="sm"
-                              onClick={() => handleIssueCertificate(st.id)}
+                              onClick={() => openIssueModal(st)}
                               isLoading={isIssuing === st.id}
                               className="font-bold py-1.5 px-3 text-xs"
                             >
@@ -627,7 +748,7 @@ export default function CertificatesDashboard() {
                               )}
                               {isActive && (
                                 <button
-                                  onClick={() => handleIssueCertificate(cert.student_id, true)}
+                                  onClick={() => openIssueModal(cert.student, true)}
                                   disabled={isIssuing === cert.student_id}
                                   className="inline-flex items-center gap-1 text-xs text-brand-orange hover:underline font-bold disabled:opacity-50 cursor-pointer"
                                   title="Regenerate Certificate PDF with latest design template layout"
@@ -670,14 +791,61 @@ export default function CertificatesDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 animate-fadeIn">
           {/* Main Drag-and-drop Workspace */}
           <div className="lg:col-span-3 space-y-4">
-            <Card variant="solid" className="p-4 bg-slate-900 border-slate-800 flex flex-col sm:flex-row gap-4 items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Target Event:</span>
+            <Card variant="solid" className="p-4 bg-slate-900 border-slate-800 space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Template:</span>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) {
+                      selectTemplateById(val);
+                    } else {
+                      setSelectedTemplateId('');
+                      setNewTemplateName('');
+                      setNewTemplateType('completion');
+                      setBgUrl('');
+                      setFields([]);
+                    }
+                  }}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 cursor-pointer focus:outline-none focus:border-brand-teal max-w-xs"
+                >
+                  <option value="">— New Template —</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.template_type})
+                    </option>
+                  ))}
+                </select>
+
+                {!selectedTemplateId && (
+                  <>
+                    <input
+                      type="text"
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      placeholder="Template name"
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-teal max-w-[190px]"
+                    />
+                    <select
+                      value={newTemplateType}
+                      onChange={(e) => setNewTemplateType(e.target.value as 'completion' | 'participation' | 'custom')}
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 cursor-pointer focus:outline-none focus:border-brand-teal"
+                    >
+                      <option value="completion">Completion</option>
+                      <option value="participation">Participation</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </>
+                )}
+
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Link to Event (optional):</span>
                 <select
                   value={selectedOpportunityId}
                   onChange={(e) => handleOpportunityChange(e.target.value)}
                   className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 cursor-pointer focus:outline-none focus:border-brand-teal max-w-xs"
                 >
+                  <option value="">— No event —</option>
                   {opportunities.map((opp) => (
                     <option key={opp.id} value={opp.id}>
                       {opp.title} {opp.certificate_template_id ? '(linked)' : '(no template)'}
@@ -703,7 +871,7 @@ export default function CertificatesDashboard() {
                   isLoading={isSavingTemplate}
                   className="font-bold text-xs"
                 >
-                  Link & Save Layout Template
+                  <Check size={14} className="mr-1.5" /> {selectedTemplateId ? 'Save Template' : 'Create & Save Template'}
                 </Button>
               </div>
             </Card>
@@ -1009,6 +1177,108 @@ export default function CertificatesDashboard() {
           </div>
         </div>
       )}
+      {/* Tab Contents: Templates Library */}
+      {activeTab === 'templates' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold font-display text-slate-100 flex items-center gap-2">
+                <LayoutTemplate size={18} className="text-brand-teal" /> Saved Certificate Templates
+              </h3>
+              <p className="text-xs text-slate-500">
+                All templates are stored in the library and can be reused across events, workshops, and seminars.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedTemplateId('');
+                setNewTemplateName('');
+                setNewTemplateType('completion');
+                setBgUrl('');
+                setFields([]);
+                setSelectedFieldId(null);
+                setActiveTab('designer');
+              }}
+              className="gap-1.5 text-xs font-bold"
+            >
+              <Plus size={14} /> New Template
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {templates.map((t) => {
+              const linkedCount = opportunities.filter(o => o.certificate_template_id === t.id).length;
+              return (
+                <Card key={t.id} variant="glass" className="p-5 bg-slate-950/60 border-slate-800 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-100 truncate">{t.name}</h4>
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider rounded-full border border-slate-700 px-2 py-0.5 text-slate-300">
+                          {t.template_type}
+                        </span>
+                        {t.is_default && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider rounded-full border border-brand-teal/30 bg-teal-500/10 px-2 py-0.5 text-teal-400">
+                            Default
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-500">
+                          {linkedCount > 0 ? `${linkedCount} event${linkedCount > 1 ? 's' : ''} linked` : 'Library only'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 min-h-[2rem]">
+                    {t.description || 'No description provided.'}
+                  </p>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-900">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        selectTemplateById(t.id);
+                        setActiveTab('designer');
+                      }}
+                      className="flex-1 gap-1 text-xs font-bold py-1.5"
+                    >
+                      <Layout size={13} /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => duplicateTemplate(t.id)}
+                      className="gap-1 text-xs text-slate-400 hover:text-slate-100 py-1.5 px-2"
+                      title="Duplicate template"
+                    >
+                      <Copy size={13} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteTemplate(t.id)}
+                      className="gap-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 py-1.5 px-2"
+                      title="Delete template"
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+
+          {templates.length === 0 && (
+            <p className="text-slate-500 text-xs text-center py-10">
+              No saved templates yet. Create one from the designer tab.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Certificate Preview & Regeneration Modal */}
       <Modal
         isOpen={!!previewCert}
@@ -1039,9 +1309,8 @@ export default function CertificatesDashboard() {
                   variant="primary"
                   size="sm"
                   onClick={async () => {
-                    await handleIssueCertificate(previewCert.student_id, true);
-                    // Update preview timestamp to refresh iframe
-                    setPreviewTimestamp(Date.now());
+                    setPreviewCert(null);
+                    openIssueModal(previewCert.student || { id: previewCert.student_id }, true);
                   }}
                   isLoading={isIssuing === previewCert.student_id}
                   className="font-bold text-xs gap-1.5"
@@ -1058,6 +1327,101 @@ export default function CertificatesDashboard() {
                 className="w-full h-full"
                 title="Certificate PDF Preview"
               />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Certificate Template Selection Modal */}
+      <Modal
+        isOpen={issueModalOpen}
+        onClose={() => setIssueModalOpen(false)}
+        title={issueForceRegenerate ? 'Regenerate Certificate — Choose Template' : 'Issue Certificate — Choose Template'}
+        className="max-w-lg"
+      >
+        {issueStudent && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-400">
+              {issueForceRegenerate ? 'Regenerating for' : 'Issuing a certificate to'}
+              <span className="text-slate-200 font-bold">
+                {' '}{issueStudent.application?.full_name || issueStudent.full_name || 'Student'}
+              </span>
+              {issueStudent.student_code && (
+                <span className="text-slate-500 font-mono"> ({issueStudent.student_code})</span>
+              )}
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Certificate Template
+              </label>
+              <div className="max-h-[320px] overflow-y-auto space-y-2 pr-1">
+                {templates.length === 0 && (
+                  <p className="text-slate-500 text-xs text-center py-6">
+                    No templates saved yet. Create one from the Designer tab first.
+                  </p>
+                )}
+                {templates.map((t) => {
+                  const isSelected = issueTemplateId === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setIssueTemplateId(t.id)}
+                      className={`w-full text-left flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'border-brand-teal bg-teal-500/10'
+                          : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                          isSelected ? 'border-brand-teal bg-teal-500/20' : 'border-slate-600'
+                        }`}
+                      >
+                        {isSelected && <Check size={10} className="text-brand-teal" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-bold text-slate-100 truncate">{t.name}</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wider rounded-full border border-slate-700 px-1.5 py-0.5 text-slate-400">
+                            {t.template_type}
+                          </span>
+                          {t.is_default && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider rounded-full border border-brand-teal/30 bg-teal-500/10 px-1.5 py-0.5 text-teal-400">
+                              Default
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-[11px] text-slate-500 mt-1 line-clamp-2">
+                          {t.description || 'No description provided.'}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-900">
+              <Button variant="outline" size="sm" onClick={() => setIssueModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!issueTemplateId || templates.length === 0}
+                isLoading={isIssuing === issueStudent.id}
+                onClick={async () => {
+                  await handleIssueCertificate(issueStudent.id, issueForceRegenerate, issueTemplateId || undefined);
+                  setIssueModalOpen(false);
+                  setPreviewTimestamp(Date.now());
+                }}
+                className="font-bold text-xs gap-1.5"
+              >
+                <Award size={13} />
+                {issueForceRegenerate ? 'Regenerate PDF' : 'Generate Certificate'}
+              </Button>
             </div>
           </div>
         )}

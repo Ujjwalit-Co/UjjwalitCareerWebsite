@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDate, getTrackLabel } from '@/lib/utils';
-import { AlertTriangle, ArrowLeft, CheckCircle, Download, Loader2, ShieldCheck, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle, Download, Loader2, User, XCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const PixelCanvas = dynamic(() => import('@/components/ui/pixel-canvas').then((mod) => mod.PixelCanvas), {
@@ -23,6 +24,10 @@ interface VerificationData {
   student: {
     student_code: string;
     batch_name: string;
+    profile: {
+      slug: string;
+      full_name: string;
+    } | null;
     application: {
       full_name: string;
       college: string;
@@ -167,6 +172,11 @@ export default function CertificateVerifyResult() {
             <Button className="w-full gap-2"><Download size={16} /> Download Certificate</Button>
           </a>
         )}
+        {data.student.profile?.slug && (
+          <Link href={`/verify/student/${encodeURIComponent(data.student.profile.slug)}`} className="mt-3 block">
+            <Button variant="teal" className="w-full gap-2"><User size={16} /> View Student Profile</Button>
+          </Link>
+        )}
         <BackButton />
       </Card>
     </ResultShell>
@@ -179,8 +189,8 @@ function ResultShell({ children }: { children: React.ReactNode }) {
 
 function BackButton() {
   return (
-    <a href="/verify" className="mt-5 inline-flex w-full">
+    <Link href="/verify" className="mt-5 inline-flex w-full">
       <Button variant="outline" className="w-full gap-2"><ArrowLeft size={16} /> Check Another Certificate</Button>
-    </a>
+    </Link>
   );
 }

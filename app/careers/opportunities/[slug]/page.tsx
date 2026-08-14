@@ -1,7 +1,7 @@
 import React, { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Award, Calendar, CheckCircle2, Clock, MapPin, ShieldCheck, Users, BookOpen } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Award, CheckCircle2, Clock, MapPin, ShieldCheck, Users, BookOpen } from 'lucide-react';
 import { getOpportunityBySlug, getOpenOpportunities } from '@/lib/opportunities';
 import { formatFee } from '@/lib/opportunities.shared';
 import { ApplicationForm } from '@/components/careers/ApplicationForm';
@@ -54,18 +54,35 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 
         <div className="space-y-12">
           {/* Centered Application Form Section */}
-          <div className="pt-2">
-            <div className="mx-auto max-w-2xl text-center mb-8">
-              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-orange">Application</span>
-              <h3 className="mt-2 text-3xl font-extrabold text-[#F5F5F5]">Apply for {opportunity.title}</h3>
-              <p className="mt-2 text-sm leading-5 text-[#A1A1AA]">Four focused steps. Review happens before submission.</p>
+          {opportunity.status === 'open' ? (
+            <div className="pt-2">
+              <div className="mx-auto max-w-2xl text-center mb-8">
+                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-orange">Application</span>
+                <h3 className="mt-2 text-3xl font-extrabold text-[#F5F5F5]">Apply for {opportunity.title}</h3>
+                <p className="mt-2 text-sm leading-5 text-[#A1A1AA]">Four focused steps. Review happens before submission.</p>
+              </div>
+              <div className="mx-auto max-w-2xl">
+                <Suspense fallback={<div className="flex min-h-[300px] items-center justify-center rounded-lg border border-brand-border bg-brand-bg text-sm text-[#A1A1AA]">Loading application form...</div>}>
+                  <ApplicationForm opportunities={allOpportunities} defaultSlug={opportunity.slug} />
+                </Suspense>
+              </div>
             </div>
-            <div className="mx-auto max-w-2xl">
-              <Suspense fallback={<div className="flex min-h-[300px] items-center justify-center rounded-lg border border-brand-border bg-brand-bg text-sm text-[#A1A1AA]">Loading application form...</div>}>
-                <ApplicationForm opportunities={allOpportunities} defaultSlug={opportunity.slug} />
-              </Suspense>
+          ) : (
+            <div className="mx-auto max-w-2xl rounded-lg border border-brand-border bg-brand-secondary/40 p-6 text-center">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg border border-brand-border bg-brand-surface text-brand-orange">
+                <Award size={22} />
+              </span>
+              <h3 className="mt-4 text-2xl font-extrabold text-[#F5F5F5]">This program has concluded</h3>
+              <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
+                Applications for {opportunity.title} are closed. Explore our current open programs to get started.
+              </p>
+              <Link href="/careers" className="mt-6 inline-flex">
+                <span className="inline-flex items-center gap-2 rounded-lg bg-brand-orange px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-orange-500">
+                  View Current Programs <ArrowRight size={14} />
+                </span>
+              </Link>
             </div>
-          </div>
+          )}
 
           {/* Onboarding Steps Below Form */}
           <div className="mx-auto max-w-2xl rounded-lg border border-brand-border bg-brand-secondary/40 p-5">

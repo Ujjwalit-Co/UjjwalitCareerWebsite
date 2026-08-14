@@ -32,6 +32,11 @@ export async function GET(
           id,
           student_code,
           batch_name,
+          profile:student_profiles (
+            id,
+            slug,
+            full_name
+          ),
           application:applications (
             id,
             full_name,
@@ -52,7 +57,7 @@ export async function GET(
     }
 
     return NextResponse.json({ certificate });
-  } catch (err: any) {
+  } catch (err) {
     console.error('Verify API Error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

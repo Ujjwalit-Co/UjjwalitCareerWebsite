@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { createClient } from '@/lib/supabase/client';
-import { generateStudentCode, formatDate, getTrackLabel } from '@/lib/utils';
+import { generateStudentCode, generateProfileSlug, formatDate, getTrackLabel } from '@/lib/utils';
 import {
   FileSpreadsheet,
   Search,
@@ -108,6 +108,47 @@ export default function ApplicationsManagement() {
     setIsAccepting(true);
 
     try {
+      // 0. Resolve or create the student profile (same email = same profile, shared QR)
+      let profileId: string | null = null;
+      const profileEmail = (selectedApp.email || '').trim().toLowerCase();
+      const { data: existingProfile } = await supabase
+        .from('student_profiles')
+        .select('id')
+        .eq('email', profileEmail)
+        .maybeSingle();
+
+      if (existingProfile) {
+        profileId = existingProfile.id;
+      } else if (profileEmail) {
+        const currentYear = new Date().getFullYear();
+        const { data: maxProfile } = await supabase
+          .from('student_profiles')
+          .select('slug')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let profileIndex = 1;
+        if (maxProfile?.slug) {
+          const parts = maxProfile.slug.split('-');
+          const lastNum = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(lastNum)) profileIndex = lastNum + 1;
+        }
+
+        const { data: newProfile, error: profileError } = await supabase
+          .from('student_profiles')
+          .insert({
+            email: profileEmail,
+            full_name: selectedApp.full_name,
+            slug: generateProfileSlug(currentYear, profileIndex),
+          })
+          .select('id')
+          .single();
+
+        if (profileError) throw profileError;
+        profileId = newProfile.id;
+      }
+
       // 1. Insert Student record with retry on unique constraint violation
       const currentYear = new Date().getFullYear();
       const { data: maxRow } = await supabase
@@ -131,6 +172,7 @@ export default function ApplicationsManagement() {
           application_id: selectedApp.id,
           student_code: studentCode,
           batch_name: batchName,
+          profile_id: profileId,
         });
 
         if (!studentError) break;

@@ -16,6 +16,8 @@ import {
   Menu,
   X,
   Mail,
+  LayoutTemplate,
+  TextQuote,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ToastProvider } from '@/components/ui/toast-provider';
@@ -65,6 +67,8 @@ export default function AdminLayout({
     { name: 'Email', href: '/admin/dashboard/email', icon: <Mail size={18} /> },
     { name: 'Documents', href: '/admin/dashboard/documents', icon: <FileText size={18} /> },
     { name: 'Certificates', href: '/admin/dashboard/certificates', icon: <Award size={18} /> },
+    { name: 'Templates', href: '/admin/dashboard/templates', icon: <LayoutTemplate size={18} /> },
+    { name: 'Statements', href: '/admin/dashboard/statements', icon: <TextQuote size={18} /> },
   ];
 
   // If we are on the login page, don't show the sidebar or admin wrapper

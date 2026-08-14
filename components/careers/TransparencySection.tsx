@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, Fingerprint, QrCode, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,9 +21,14 @@ export const TransparencySection = () => {
           <p className="max-w-xl text-base font-medium leading-7 text-[#A1A1AA]">
             Certificates include public registry validation, QR status, and revocation controls. It should feel closer to banking software than a decorative PDF.
           </p>
-          <Link href="/verify" className="inline-flex">
+          <a
+            href={process.env.NEXT_PUBLIC_VERIFY_URL || 'https://verify.ujjwalit.co.in'}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex"
+          >
             <Button variant="outline" className="gap-2">Open Verification Portal <ArrowRight size={16} /></Button>
-          </Link>
+          </a>
         </motion.div>
 
 

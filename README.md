@@ -17,8 +17,11 @@ The legacy EJS app in `legacy-UJJWALIT_BLOGS/` is reference-only. Vercel deploym
 - `/careers` - public Ujjwalit Developers Program site
 - `/careers/apply` - student application/registration form
 - `/verify` and `/verify/[certificateId]` - certificate verification
+- `/verify/student/[slug]` - public student credential profile (composes selected Statement of Achievement snippets)
 - `/admin/login` and `/admin/dashboard` - admin console
 - `/admin/dashboard/opportunities` - create, edit, open, close, and archive internships/events/projects
+- `/admin/dashboard/certificates` - certificate designer, template library, and issuance/registry (chooses a template on issue)
+- `/admin/dashboard/statements` - Statement of Achievement snippet library
 
 Subdomain routing is handled by `middleware.ts`:
 
@@ -55,10 +58,18 @@ Run [supabase/schema.sql](supabase/schema.sql) in Supabase SQL Editor after back
 
 - `opportunities` for admin-customizable internships, projects, and events
 - `applications`, `students`, `documents`, `certificates`, `certificate_templates`
+- `achievement_statements` / `student_achievement_statements` for Statement of Achievement snippets
 - Storage buckets for resumes, letters, certificates, templates, and opportunity assets
 - RLS policies for public applications, public verification, and authenticated admin management
 
 Create admin users from Supabase Dashboard -> Authentication -> Users.
+
+### Pending migrations
+
+Run these newer migrations (in order) in Supabase SQL Editor — the base `schema.sql` does not include them:
+
+1. `supabase/migrations/2026_soa_statements.sql` — adds SOA snippet tables, seeds 5 snippets, migrates existing `achievement` certificates/students to `completion`
+2. `supabase/migrations/2026_public_programs_profile_remarks.sql` — RLS + remarks for public profile
 
 ## Development Notes
 
@@ -66,6 +77,8 @@ Create admin users from Supabase Dashboard -> Authentication -> Users.
 - If Supabase is unavailable or the schema has not been run yet, `lib/opportunities.shared.ts` provides safe fallback content.
 - Shared client-safe opportunity helpers live in `lib/opportunities.shared.ts`; server fetching lives in `lib/opportunities.ts`.
 - Certificate verification depends on `certificate_id`, `verification_hash`, `verification_url`, and optional QR/PDF URLs.
+- Certificate/letter PDF generation uses locally vendored TTFs in `lib/generators/fonts/` (Inter, Montserrat, Playfair Display, Great Vibes, Alex Brush) — no runtime font fetch.
+- Certificate templates support placeholders: `{{name}}`, `{{program}}`/`{{track}}`/`{{track_name}}`, `{{id}}`, `{{date}}`/`{{issue_date}}`, `{{college}}`, `{{batch}}`/`{{batch_name}}`, `{{student_code}}`/`{{code}}`, `{{attendance}}`. Document templates additionally support `{{duration}}`, `{{offer_id}}`, `{{startDate}}`/`{{start_date}}`, `{{endDate}}`.
 - Keep UI assets used by the Next app in `public/`, not in `legacy-UJJWALIT_BLOGS/`.
 
 ## Quality Checks

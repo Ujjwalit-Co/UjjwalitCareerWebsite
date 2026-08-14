@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { createClient } from '@/lib/supabase/client';
-import { getTrackLabel } from '@/lib/utils';
+import { getTrackLabel, getCertificateTypeLabel } from '@/lib/utils';
 import {
   Users,
   Search,
@@ -35,6 +35,8 @@ export default function StudentsManagement() {
   const [isSaving, setIsSaving] = useState(false);
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [statementLibrary, setStatementLibrary] = useState<any[]>([]);
+  const [selectedStatementIds, setSelectedStatementIds] = useState<Set<string>>(new Set());
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -49,6 +51,9 @@ export default function StudentsManagement() {
             email,
             college,
             internship_track
+          ),
+          profile:student_profiles (
+            id
           )
         `)
         .order('joined_at', { ascending: false });
@@ -67,14 +72,64 @@ export default function StudentsManagement() {
     fetchStudents();
   }, []);
 
-  const handleEditOpen = (student: any) => {
+  const fetchStatementLibrary = async () => {
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase
+        .from('achievement_statements')
+        .select('id, label, body_markdown')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      setStatementLibrary(data || []);
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatementLibrary();
+  }, []);
+
+  const handleEditOpen = async (student: any) => {
+    let profileRemarks = '';
+    if (student.profile?.id) {
+      try {
+        const supabase = createClient();
+        const { data: remarksRow } = await supabase
+          .from('student_profiles')
+          .select('remarks')
+          .eq('id', student.profile.id)
+          .maybeSingle();
+        profileRemarks = remarksRow?.remarks || '';
+      } catch {
+        // remarks column not present yet — leave empty
+      }
+    }
+
+    // Load the student's currently selected achievement statements
+    let selectedIds = new Set<string>();
+    const supabase = createClient();
+    try {
+      const { data: junctionRows } = await supabase
+        .from('student_achievement_statements')
+        .select('statement_id')
+        .eq('student_id', student.id);
+      selectedIds = new Set((junctionRows || []).map((r: any) => r.statement_id));
+    } catch (err: any) {
+      console.error(err);
+    }
+
+    setSelectedStatementIds(selectedIds);
     setEditingStudent({
       ...student,
       attendance: student.attendance_percentage || 0,
       projectSubmitted: student.project_submitted || false,
       projectScore: student.project_score || 0,
       batchName: student.batch_name || '',
-      eligible: student.certificate_eligible || false,
+      certificateType: student.certificate_type || 'none',
+      profileRemarks,
     });
   };
 
@@ -93,11 +148,48 @@ export default function StudentsManagement() {
           project_submitted: editingStudent.projectSubmitted,
           project_score: parseFloat(editingStudent.projectScore),
           batch_name: editingStudent.batchName,
-          certificate_eligible: editingStudent.eligible,
+          certificate_type: editingStudent.certificateType,
+          certificate_eligible: editingStudent.certificateType !== 'none',
         })
         .eq('id', editingStudent.id);
 
       if (error) throw error;
+
+      // Sync the student's selected achievement statements (delete + insert)
+      const { error: delError } = await supabase
+        .from('student_achievement_statements')
+        .delete()
+        .eq('student_id', editingStudent.id);
+      if (delError) throw delError;
+
+      if (selectedStatementIds.size > 0) {
+        const { error: insError } = await supabase
+          .from('student_achievement_statements')
+          .insert(
+            Array.from(selectedStatementIds).map((statementId, idx) => ({
+              student_id: editingStudent.id,
+              statement_id: statementId,
+              display_order: idx,
+            }))
+          );
+        if (insError) throw insError;
+      }
+
+      // Persist profile remarks if the student has a linked profile
+      if (editingStudent.profile?.id) {
+        const { error: profileError } = await supabase
+          .from('student_profiles')
+          .update({
+            remarks: (editingStudent.profileRemarks || '').trim() || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingStudent.profile.id);
+
+        if (profileError && profileError.code !== '42703') throw profileError;
+        if (profileError?.code === '42703') {
+          console.warn('remarks column not present yet — skipping remarks save.');
+        }
+      }
 
       toast.success('Student record updated successfully');
       setEditingStudent(null);
@@ -249,9 +341,9 @@ export default function StudentsManagement() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        {st.certificate_eligible ? (
+                        {st.certificate_type !== 'none' ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-400 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded-full">
-                            <Award size={10} /> Eligible
+                            <Award size={10} /> {getCertificateTypeLabel(st.certificate_type)}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 bg-slate-900 border border-slate-850 px-2 py-0.5 rounded-full">
@@ -357,27 +449,92 @@ export default function StudentsManagement() {
               />
             </div>
 
-            {/* Certificate eligibility status checkbox */}
+            {/* Profile remarks */}
             <div className="border-t border-slate-900 pt-4">
-              <div className="flex items-center gap-3 bg-slate-900/40 p-3 rounded-lg border border-slate-900">
-                <input
-                  type="checkbox"
-                  id="eligible"
-                  checked={editingStudent.eligible}
-                  onChange={(e) =>
-                    setEditingStudent({ ...editingStudent, eligible: e.target.checked })
-                  }
-                  className="h-4 w-4 bg-slate-950 border border-slate-800 rounded text-brand-orange focus:ring-brand-orange cursor-pointer"
-                />
-                <div className="flex flex-col cursor-pointer select-none">
-                  <label htmlFor="eligible" className="text-sm font-bold text-slate-200">
-                    Eligible for Completion Certificate
-                  </label>
-                  <span className="text-[10px] text-slate-550">
-                    Checking this enables certificate generation for the student under Registry page.
-                  </span>
+              <label className="text-sm font-bold text-slate-200 block mb-1.5">
+                Profile Remarks (shown on public page)
+              </label>
+              <textarea
+                value={editingStudent.profileRemarks}
+                onChange={(e) =>
+                  setEditingStudent({ ...editingStudent, profileRemarks: e.target.value })
+                }
+                rows={4}
+                placeholder="e.g. Outstanding project delivery; led the frontend track of the AI capstone."
+                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-orange resize-y"
+              />
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                Optional note displayed on the student&apos;s public profile page (verify.ujjwalit.co.in/student/{'{slug}'}).
+              </p>
+            </div>
+
+            {/* Certificate type selection */}
+            <div className="border-t border-slate-900 pt-4">
+              <label className="text-sm font-bold text-slate-200 block mb-1.5">
+                Certificate Type
+              </label>
+              <select
+                value={editingStudent.certificateType}
+                onChange={(e) =>
+                  setEditingStudent({ ...editingStudent, certificateType: e.target.value })
+                }
+                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-brand-orange cursor-pointer"
+              >
+                <option value="none">Not Eligible</option>
+                <option value="completion">Certificate of Completion</option>
+                <option value="participation">Certificate of Participation</option>
+              </select>
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                Enables certificate generation for this student under the Registry page. Completion = full program,
+                Participation = attended an event/workshop.
+              </p>
+            </div>
+
+            {/* Achievement statement snippets (toggle selection) */}
+            <div className="border-t border-slate-900 pt-4">
+              <label className="text-sm font-bold text-slate-200 block mb-1.5">
+                Statement of Achievement
+              </label>
+              {statementLibrary.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No achievement statements configured. Add snippets under <span className="text-brand-orange">Statements</span> in the admin panel.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {statementLibrary.map((stmt) => {
+                    const checked = selectedStatementIds.has(stmt.id);
+                    return (
+                      <label
+                        key={stmt.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                          checked
+                            ? 'border-brand-orange/40 bg-brand-orange/5'
+                            : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = new Set(selectedStatementIds);
+                            if (e.target.checked) next.add(stmt.id);
+                            else next.delete(stmt.id);
+                            setSelectedStatementIds(next);
+                          }}
+                          className="h-4 w-4 mt-0.5 bg-slate-950 border border-slate-800 rounded text-brand-orange focus:ring-brand-orange cursor-pointer"
+                        />
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold text-slate-200">{stmt.label}</span>
+                          <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line">{stmt.body_markdown}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                Toggle the skills/achievements to highlight. Selected statements are composed on the student&apos;s public profile.
+              </p>
             </div>
 
             {/* Email Triggers Section */}
