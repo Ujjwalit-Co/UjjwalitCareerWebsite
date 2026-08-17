@@ -2,24 +2,37 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
-import { Lock, Mail, ShieldAlert } from 'lucide-react';
+import { Lock, Mail, ShieldAlert, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email || !password) {
-      toast.error('Please fill in all fields');
+    if (!email.trim() || !password) {
+      toast.error('Please enter both email and password credentials.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      toast.error('Please enter a valid email address structure (e.g. admin@ujjwalit.co.in).');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Security password must be at least 6 characters in length.');
       return;
     }
 
@@ -28,7 +41,7 @@ export default function AdminLoginPage() {
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
@@ -36,35 +49,41 @@ export default function AdminLoginPage() {
         throw new Error(error.message);
       }
 
-      toast.success('Successfully logged in!');
-      // Force refresh/redirect to the admin dashboard
+      toast.success('Access granted! Authenticating console...');
       router.refresh();
       router.push('/admin/dashboard');
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Invalid credentials');
+      toast.error(err.message || 'Access Denied. Check your admin credentials.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4 relative bg-gradient-to-b from-slate-950 to-brand-deep">
-      {/* Decorative Radial Background */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(26,139,166,0.08),transparent_60%)] pointer-events-none" />
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4 relative bg-gradient-to-b from-slate-950 to-brand-deep overflow-hidden">
+      {/* Decorative grid backdrop */}
+      <div className="absolute inset-0 opacity-[0.04] pointer-events-none"
+        style={{ backgroundImage: 'linear-gradient(to right,#60a5fa 1px,transparent 1px),linear-gradient(to bottom,#60a5fa 1px,transparent 1px)', backgroundSize: '40px 40px' }} />
+      {/* Radial glows */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(26,139,166,0.10),transparent_55%)] pointer-events-none" />
+      <div className="absolute -bottom-32 -right-32 h-80 w-80 rounded-full bg-brand-orange/10 blur-3xl pointer-events-none" />
+      <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-brand-blue/10 blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md relative z-10 space-y-6">
         {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <span className="inline-flex h-12 w-12 bg-brand-orange rounded-xl items-center justify-center text-white font-bold font-display text-lg glow-orange mb-2">
-            UT
+        <div className="text-center space-y-3">
+          <span className="relative inline-flex h-14 w-14 mx-auto overflow-hidden rounded-xl bg-white shadow-lg glow-orange ring-1 ring-white/10">
+            <Image src="/ujjwalitlogo.png" alt="Ujjwalit" fill className="object-contain p-1" sizes="56px" />
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-white tracking-tight">
-            Admin Console
-          </h1>
-          <p className="text-slate-400 text-xs tracking-wider uppercase font-semibold">
-            Ujjwalit Technologies
-          </p>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-white tracking-tight">
+              Admin Console
+            </h1>
+            <p className="mt-1 text-xs tracking-wider uppercase font-semibold text-brand-orange">
+              Ujjwalit Technologies
+            </p>
+          </div>
         </div>
 
         {/* Login Card */}
@@ -86,12 +105,20 @@ export default function AdminLoginPage() {
               <Lock className="absolute left-3 top-[38px] text-slate-500" size={18} />
               <Input
                 label="Security Password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-10"
+                className="pl-10 pr-10"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-[38px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
 
             <div className="pt-2">
@@ -107,8 +134,17 @@ export default function AdminLoginPage() {
           <ShieldAlert size={16} className="text-brand-orange flex-shrink-0" />
           <span>Restricted Area. Authorized administrative personnel access only.</span>
         </div>
+
+        {/* Back to careers */}
+        <div className="text-center">
+          <a
+            href="https://careers.ujjwalit.co.in"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <ArrowLeft size={12} /> Back to careers site
+          </a>
+        </div>
       </div>
     </div>
   );
 }
-

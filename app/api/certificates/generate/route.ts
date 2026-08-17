@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateCertificatePDF } from '@/lib/generators/certificate';
 import { generateCertificateId, generateVerificationHash, getTrackLabel } from '@/lib/utils';
+import { getNextCertificateIndex } from '@/lib/certificates.server';
 import type { CertificateType } from '@/lib/database.types';
+import { requireAdmin } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
+    // 1. Authenticate the admin
+    await requireAdmin();
+
     const { studentId, forceRegenerate, templateId } = await request.json();
 
     if (!studentId) {
@@ -68,31 +73,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let certificateId = '';
-    let verificationHash = '';
-
-    if (existingCert && forceRegenerate) {
-      // Use existing credentials
-      certificateId = existingCert.certificate_id;
-      verificationHash = existingCert.verification_hash;
-    } else {
-      // Generate new credentials — fetch max index to avoid collisions
-      const { data: maxRow } = await supabase
-        .from('certificates')
-        .select('certificate_id')
-        .order('issued_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let nextIndex = 1;
-      if (maxRow?.certificate_id) {
-        const parts = maxRow.certificate_id.split('-');
-        const lastNum = parseInt(parts[parts.length - 1], 10);
-        if (!isNaN(lastNum)) nextIndex = lastNum + 1;
-      }
-      certificateId = generateCertificateId(app.internship_track, currentYear, nextIndex, certificateType);
-      verificationHash = generateVerificationHash();
-    }
+    // Always issue a fresh certificate ID + verification hash, even on regeneration,
+    // so the new certificate replaces (and invalidates) the previous one.
+    const nextIndex = await getNextCertificateIndex(supabase, app.internship_track, currentYear, certificateType);
+    const certificateId = generateCertificateId(app.internship_track, currentYear, nextIndex, certificateType);
+    const verificationHash = generateVerificationHash();
 
     // Verification URL points to the individual certificate registry page
     const verificationUrl = `https://verify.ujjwalit.co.in/${certificateId}`;

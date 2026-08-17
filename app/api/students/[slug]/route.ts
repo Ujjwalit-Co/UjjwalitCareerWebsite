@@ -26,7 +26,7 @@ export async function GET(
 
     const { data: bySlug } = await supabase
       .from('student_profiles')
-      .select('id, full_name, slug')
+      .select('id, full_name, slug, email')
       .eq('slug', identifier)
       .maybeSingle();
     if (bySlug) profile = bySlug;
@@ -34,7 +34,7 @@ export async function GET(
     if (!profile) {
       const { data: byEmail } = await supabase
         .from('student_profiles')
-        .select('id, full_name, slug')
+        .select('id, full_name, slug, email')
         .eq('email', identifier.toLowerCase())
         .maybeSingle();
       if (byEmail) profile = byEmail;
@@ -49,7 +49,7 @@ export async function GET(
       if (studentByCode?.profile_id) {
         const { data: byProfile } = await supabase
           .from('student_profiles')
-          .select('id, full_name, slug')
+          .select('id, full_name, slug, email')
           .eq('id', studentByCode.profile_id)
           .maybeSingle();
         if (byProfile) profile = byProfile;
@@ -86,11 +86,16 @@ export async function GET(
         project_score,
         certificate_type,
         joined_at,
+        opportunity:opportunities (
+          title,
+          slug
+        ),
         application:applications (
           full_name,
           college,
           branch,
-          internship_track
+          internship_track,
+          email
         ),
         achievement_statements:student_achievement_statements (
           statement:achievement_statements (
@@ -132,7 +137,7 @@ export async function GET(
             status,
             issued_at,
             student:students (student_code, batch_name),
-            opportunity:opportunities (title)
+            opportunity:opportunities (title, slug)
           `)
           .in('student_id', studentIds)
           .eq('status', 'active')
@@ -144,6 +149,7 @@ export async function GET(
         id: profile.id,
         full_name: profile.full_name,
         slug: profile.slug,
+        email: (profile as any).email ?? null,
         remarks,
       },
       students: normalizedStudents || [],

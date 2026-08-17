@@ -27,7 +27,7 @@ export default function VerifyLayout({
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <main className="flex flex-1 justify-center items-start px-4 py-10 sm:py-14 sm:px-6 lg:px-8">
         {children}
       </main>
 

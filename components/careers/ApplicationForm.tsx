@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, FileText, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 import { Opportunity, formatFee } from '@/lib/opportunities.shared';
 
 type Step = 1 | 2 | 3 | 4 | 5;
@@ -157,20 +158,7 @@ export const ApplicationForm = ({
 
       if (dbError) throw new Error(`Database submission failed: ${dbError.message}`);
       
-      // Dispatch confirmation email
-      try {
-        await fetch('/api/email/apply-received', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formData.fullName.trim(),
-            email: formData.email.trim(),
-            programTitle: selectedOpportunity.title
-          })
-        });
-      } catch (emailErr) {
-        console.error('Failed to send confirmation email', emailErr);
-      }
+      // Auto confirmation email removed — emails are opt-in from the admin pipeline
 
       toast.success('Application submitted successfully');
       setStep(5);
@@ -297,7 +285,44 @@ export const ApplicationForm = ({
                 </div>
               ))}
             </div>
-            <div className="flex justify-between pt-2"><Button variant="outline" onClick={() => setStep(3)} disabled={isSubmitting} className="gap-2"><ArrowLeft size={16} /> Back</Button><Button onClick={executeSubmit} isLoading={isSubmitting} className="gap-2"><Check size={16} /> Submit Application</Button></div>
+            <div className="flex items-start gap-3 p-1">
+              <input
+                type="checkbox"
+                id="acceptTerms"
+                required
+                className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-800 text-brand-blue focus:ring-brand-blue/20"
+              />
+              <label htmlFor="acceptTerms" className="text-xs leading-5 text-slate-400">
+                I agree to the{' '}
+                <Link href="/terms" target="_blank" className="text-brand-blue hover:underline">
+                  Terms &amp; Conditions
+                </Link>{' '}
+                and{' '}
+                <Link href="/privacy" target="_blank" className="text-brand-blue hover:underline">
+                  Privacy Policy
+                </Link>{' '}
+                governing data collection and cross-program profile linkage by Ujjwalit Technologies Private Limited.
+              </label>
+            </div>
+            <div className="flex justify-between pt-2">
+              <Button variant="outline" onClick={() => setStep(3)} disabled={isSubmitting} className="gap-2">
+                <ArrowLeft size={16} /> Back
+              </Button>
+              <Button
+                onClick={() => {
+                  const cb = document.getElementById('acceptTerms') as HTMLInputElement;
+                  if (!cb || !cb.checked) {
+                    toast.error('You must accept the Terms & Conditions and Privacy Policy to submit.');
+                    return;
+                  }
+                  executeSubmit();
+                }}
+                isLoading={isSubmitting}
+                className="gap-2"
+              >
+                <Check size={16} /> Submit Application
+              </Button>
+            </div>
           </motion.div>
         )}
 

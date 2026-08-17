@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
+import { PlaceholderGuide } from '@/components/admin/PlaceholderGuide';
 import {
   TextQuote,
   Plus,
@@ -224,7 +225,15 @@ export default function StatementsManagementPage() {
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-200 block mb-1.5">Statement (markdown)</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-bold text-slate-200 block">Statement (markdown)</label>
+                <PlaceholderGuide
+                  placeholders={[
+                    { key: '{{attendance}}', description: 'Student\'s attendance % (e.g. 92)' },
+                    { key: '{{batch}}', description: 'Student\'s batch name (e.g. UDP 2026)' },
+                  ]}
+                />
+              </div>
               <textarea
                 value={bodyMarkdown}
                 onChange={(e) => setBodyMarkdown(e.target.value)}
@@ -233,7 +242,7 @@ export default function StatementsManagementPage() {
                 className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-orange resize-y font-mono text-xs"
               />
               <p className="text-[10px] text-slate-500 mt-1.5">
-                Markdown supported. Placeholder: <code className="text-brand-orange">{"{{attendance}}"}</code> for attendance %.
+                Markdown supported. Hover the Keys icon to see available placeholders.
               </p>
             </div>
 

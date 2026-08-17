@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDate, getTrackLabel } from '@/lib/utils';
-import { AlertTriangle, ArrowLeft, CheckCircle, Download, Loader2, User, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Award, BadgeCheck, CalendarDays, CheckCircle, Download, Fingerprint, GraduationCap, Hash, Loader2, QrCode, User, XCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const PixelCanvas = dynamic(() => import('@/components/ui/pixel-canvas').then((mod) => mod.PixelCanvas), {
@@ -21,6 +21,13 @@ interface VerificationData {
   certificate_pdf_url: string | null;
   status: 'active' | 'revoked';
   issued_at: string;
+  opportunity: {
+    id: string;
+    title: string;
+    description: string;
+    slug: string;
+    type: string;
+  } | null;
   student: {
     student_code: string;
     batch_name: string;
@@ -105,86 +112,120 @@ export default function CertificateVerifyResult() {
   }
 
   const app = data.student.application;
-  const rows = [
-    ['Status', 'Verified'],
-    ['Name', app.full_name],
-    ['Program', getTrackLabel(app.internship_track)],
-    ['Issue Date', formatDate(data.issued_at)],
-    ['Certificate ID', data.certificate_id],
-    ['QR Validation Status', data.qr_code_url ? 'Linked' : 'Registry record active'],
-  ];
+  const programName = data.opportunity?.title || getTrackLabel(app.internship_track);
 
   return (
     <ResultShell>
-      <Card className="p-5 sm:p-6" hoverEffect={false}>
-        <div className="mb-5 flex items-center gap-3 rounded-lg border border-brand-success/30 bg-brand-success/10 p-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-success/10 text-brand-success"><CheckCircle size={22} /></div>
-          <div>
-            <h1 className="text-lg font-extrabold text-[#F5F5F5]">Verified</h1>
-            <p className="text-xs leading-5 text-[#A1A1AA]">This credential is authentic and officially issued.</p>
-          </div>
-        </div>
+      <div className="mb-5 flex items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-brand-success flex items-center gap-1.5">
+          <BadgeCheck size={14} /> Credential Verified
+        </span>
+      </div>
 
-        <div className="space-y-3 my-5">
-          {rows.map(([label, value]) => (
-            <div
-              key={label}
-              className="relative group overflow-hidden rounded-xl border border-brand-border bg-brand-surface/30 p-4 transition-all duration-300 ease-in-out hover:border-brand-blue/40"
-            >
-              {/* Pixel reveal effect on hover */}
-              <PixelCanvas
-                gap={6}
-                speed={30}
-                colors={["#3B82F6", "#60A5FA", "#93C5FD"]}
-                variant="icon"
-              />
-
-              {/* Corner brackets that appear on hover */}
-              <div className="absolute top-2.5 left-2.5 w-4 h-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                <div className="absolute top-0 left-0 w-3 h-0.5 bg-brand-blue" />
-                <div className="absolute top-0 left-0 w-0.5 h-3 bg-brand-blue" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {/* HERO — verified status banner */}
+        <BentoTile className="sm:col-span-2 lg:row-span-2 border-brand-success/25 bg-gradient-to-br from-brand-success/10 via-brand-surface/40 to-brand-surface/40">
+          <div className="flex flex-col justify-between h-full gap-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-success/15 text-brand-success">
+                <CheckCircle size={26} />
               </div>
-              <div className="absolute bottom-2.5 right-2.5 w-4 h-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                <div className="absolute bottom-0 right-0 w-3 h-0.5 bg-brand-blue" />
-                <div className="absolute bottom-0 right-0 w-0.5 h-3 bg-brand-blue" />
-              </div>
-
-              {/* Content */}
-              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#71717A] group-hover:text-brand-blue transition-colors duration-300">
-                  {label}
-                </span>
-                <span className="font-bold text-[#F5F5F5] text-sm sm:text-base text-right">
-                  {value}
-                </span>
+              <div>
+                <h1 className="text-2xl font-extrabold text-[#F5F5F5]">Verified</h1>
+                <p className="mt-1 text-xs leading-5 text-[#A1A1AA]">This credential is authentic and officially issued by Ujjwalit Technologies.</p>
               </div>
             </div>
-          ))}
-        </div>
 
-        <div className="mt-5 rounded-lg border border-brand-border bg-brand-bg p-3">
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#71717A]">Registry Hash</p>
+            {/* Identity block */}
+            <div className="relative overflow-hidden rounded-xl border border-brand-border bg-brand-bg/60 p-4">
+              <PixelCanvas gap={6} speed={30} colors={["#3B82F6", "#60A5FA", "#93C5FD"]} variant="icon" />
+              <div className="relative z-10 space-y-2">
+                <div className="flex items-center gap-2 text-[#71717A]">
+                  <User size={13} className="text-brand-blue" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em]">Issued To</span>
+                </div>
+                <p className="text-xl font-extrabold text-[#F5F5F5] leading-tight">{app.full_name}</p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-brand-border bg-brand-surface/60 px-2 py-0.5 font-mono text-[10px] text-[#A1A1AA]">
+                    <GraduationCap size={11} className="text-brand-orange" /> {app.college}
+                  </span>
+                  {data.student.batch_name && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-brand-border bg-brand-surface/60 px-2 py-0.5 font-mono text-[10px] text-[#A1A1AA]">
+                      {data.student.batch_name}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </BentoTile>
+
+        {/* Program */}
+        <BentoTile>
+          <div className="flex items-center gap-2 text-brand-blue"><Award size={15} /><span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#71717A]">Program</span></div>
+          <p className="mt-2 text-sm font-bold text-[#F5F5F5] leading-snug break-words">{programName}</p>
+        </BentoTile>
+
+        {/* Issue Date */}
+        <BentoTile>
+          <div className="flex items-center gap-2 text-brand-orange"><CalendarDays size={15} /><span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#71717A]">Issue Date</span></div>
+          <p className="mt-2 text-sm font-bold text-[#F5F5F5]">{formatDate(data.issued_at)}</p>
+        </BentoTile>
+
+        {/* Certificate ID */}
+        <BentoTile className="sm:col-span-2">
+          <div className="flex items-center gap-2 text-cyan-400"><Hash size={15} /><span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#71717A]">Certificate ID</span></div>
+          <p className="mt-2 font-mono text-sm font-bold text-cyan-300 break-all">{data.certificate_id}</p>
+        </BentoTile>
+
+        {/* QR validation */}
+        <BentoTile>
+          <div className="flex items-center gap-2 text-brand-success"><QrCode size={15} /><span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#71717A]">QR Validation</span></div>
+          <p className="mt-2 text-sm font-bold text-[#F5F5F5]">{data.qr_code_url ? 'Linked' : 'Registry active'}</p>
+        </BentoTile>
+
+        {/* Registry hash — wide */}
+        <BentoTile className="sm:col-span-2 lg:col-span-3">
+          <div className="flex items-center gap-2 text-slate-400"><Fingerprint size={15} /><span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#71717A]">Registry Hash</span></div>
           <p className="mt-2 break-all font-mono text-[11px] leading-5 text-[#A1A1AA]">{data.verification_hash}</p>
-        </div>
+        </BentoTile>
 
-        {data.certificate_pdf_url && (
-          <a href={data.certificate_pdf_url.startsWith('http') ? data.certificate_pdf_url : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/certificates/${data.certificate_pdf_url}`} target="_blank" rel="noreferrer" className="mt-5 block">
-            <Button className="w-full gap-2"><Download size={16} /> Download Certificate</Button>
-          </a>
+        {/* Program details — wide */}
+        {data.opportunity?.description && (
+          <BentoTile className="sm:col-span-2 lg:col-span-3">
+            <div className="flex items-center gap-2 text-brand-blue"><Award size={15} /><span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#71717A]">Program Details</span></div>
+            <p className="mt-2 text-sm leading-relaxed text-[#A1A1AA]">{data.opportunity.description}</p>
+          </BentoTile>
         )}
-        {data.student.profile?.slug && (
-          <Link href={`/verify/student/${encodeURIComponent(data.student.profile.slug)}`} className="mt-3 block">
-            <Button variant="teal" className="w-full gap-2"><User size={16} /> View Student Profile</Button>
+
+        {/* Actions — full width */}
+        <div className="sm:col-span-2 lg:col-span-3 flex flex-col sm:flex-row gap-2 pt-1">
+          {data.certificate_pdf_url && (
+            <a
+              href={data.certificate_pdf_url.startsWith('http') ? data.certificate_pdf_url : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/certificates/${data.certificate_pdf_url}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1"
+            >
+              <Button className="w-full gap-2"><Download size={16} /> Download Certificate</Button>
+            </a>
+          )}
+          {data.student.profile?.slug && (
+            <Link href={`/verify/student/${encodeURIComponent(data.student.profile.slug)}`} className="flex-1">
+              <Button variant="teal" className="w-full gap-2"><User size={16} /> View Student Profile</Button>
+            </Link>
+          )}
+          <Link href="/verify" className="flex-1">
+            <Button variant="outline" className="w-full gap-2"><ArrowLeft size={16} /> Check Another</Button>
           </Link>
-        )}
-        <BackButton />
-      </Card>
+        </div>
+      </div>
     </ResultShell>
   );
 }
 
 function ResultShell({ children }: { children: React.ReactNode }) {
-  return <div className="w-full max-w-lg">{children}</div>;
+  return <div className="w-full max-w-3xl px-4 sm:px-0">{children}</div>;
 }
 
 function BackButton() {
@@ -192,5 +233,13 @@ function BackButton() {
     <Link href="/verify" className="mt-5 inline-flex w-full">
       <Button variant="outline" className="w-full gap-2"><ArrowLeft size={16} /> Check Another Certificate</Button>
     </Link>
+  );
+}
+
+function BentoTile({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border border-brand-border bg-brand-surface/30 p-4 transition-all duration-300 hover:border-brand-blue/40 hover:-translate-y-0.5 ${className}`}>
+      {children}
+    </div>
   );
 }

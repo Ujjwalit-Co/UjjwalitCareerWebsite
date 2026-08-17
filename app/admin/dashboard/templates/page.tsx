@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
+import { PlaceholderGuide } from '@/components/admin/PlaceholderGuide';
 import {
   Award,
   Layout,
@@ -65,6 +66,11 @@ export default function CertificateTemplatesPage() {
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateType, setNewTemplateType] = useState<TemplateType>('completion');
   const [newTemplateDescription, setNewTemplateDescription] = useState('');
+
+  // Copy-to-type modal state
+  const [copyModal, setCopyModal] = useState<{ id: string; name: string } | null>(null);
+  const [copyType, setCopyType] = useState<TemplateType>('completion');
+  const [isCopying, setIsCopying] = useState(false);
 
   // Designer Canvas Dimensions (Standard ratio 1.414: A4 landscape, scaled down to fit viewport)
   const designerWidth = 800;
@@ -145,14 +151,15 @@ export default function CertificateTemplatesPage() {
     setView('designer');
   };
 
-  const duplicateTemplate = async (id: string) => {
+  const copyTemplateToType = async (id: string, targetType: TemplateType) => {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
     const supabase = createClient();
+    setIsCopying(true);
     try {
       const { error } = await supabase.from('certificate_templates').insert({
-        name: `${t.name} (Copy)`,
-        template_type: t.template_type || 'custom',
+        name: `${t.name} (${TYPE_CONFIG[targetType].short})`,
+        template_type: targetType,
         description: t.description,
         background_url: t.background_url,
         fields: t.fields,
@@ -161,10 +168,13 @@ export default function CertificateTemplatesPage() {
         is_default: false,
       });
       if (error) throw error;
-      toast.success('Template duplicated');
+      toast.success(`Copied to "${TYPE_CONFIG[targetType].label}"`);
+      setCopyModal(null);
       loadTemplates();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to duplicate template');
+      toast.error(err.message || 'Failed to copy template');
+    } finally {
+      setIsCopying(false);
     }
   };
 
@@ -329,6 +339,8 @@ export default function CertificateTemplatesPage() {
         const { error: tErr } = await supabase
           .from('certificate_templates')
           .update({
+            name: newTemplateName.trim() || undefined,
+            template_type: newTemplateType,
             background_url: bgUrl || null,
             fields: fields as any,
             width: designerWidth,
@@ -553,9 +565,9 @@ export default function CertificateTemplatesPage() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => duplicateTemplate(t.id)}
+                                onClick={() => setCopyModal({ id: t.id, name: t.name })}
                                 className="gap-1 text-xs text-slate-400 hover:text-slate-100 py-1.5 px-2"
-                                title="Duplicate template"
+                                title="Copy to another template type"
                               >
                                 <Copy size={13} />
                               </Button>
@@ -862,7 +874,21 @@ export default function CertificateTemplatesPage() {
 
                     {selectedField.type === 'text' && (
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-semibold text-[#F5F5F5]">Template Text</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-semibold text-[#F5F5F5]">Template Text</label>
+                          <PlaceholderGuide
+                            placeholders={[
+                              { key: '{{name}}', description: 'Student\'s full name' },
+                              { key: '{{program}} / {{track}}', description: 'Program / track name' },
+                              { key: '{{id}}', description: 'Certificate ID' },
+                              { key: '{{date}}', description: 'Issue date' },
+                              { key: '{{college}}', description: 'Student\'s college' },
+                              { key: '{{batch}}', description: 'Batch name' },
+                              { key: '{{student_code}} / {{code}}', description: 'Student code' },
+                              { key: '{{attendance}}', description: 'Attendance %' },
+                            ]}
+                          />
+                        </div>
                         <textarea
                           value={selectedField.placeholder}
                           onChange={(e) => handleUpdateSelectedField('placeholder', e.target.value)}
@@ -986,6 +1012,49 @@ export default function CertificateTemplatesPage() {
               </Card>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Copy-to-type modal */}
+      {copyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <Card variant="solid" className="max-w-sm w-full p-6 space-y-4 bg-slate-950 border border-slate-900 text-slate-100">
+            <h3 className="text-lg font-bold text-slate-100 border-b border-slate-900 pb-2 flex items-center gap-2">
+              <Copy size={16} className="text-brand-orange" /> Copy Template
+            </h3>
+
+            <div className="space-y-1">
+              <label className="text-slate-400 font-semibold block text-xs">Source</label>
+              <p className="text-sm font-semibold text-slate-200">{copyModal.name}</p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-slate-400 font-semibold block text-xs">Copy into</label>
+              <select
+                value={copyType}
+                onChange={(e) => setCopyType(e.target.value as TemplateType)}
+                className="w-full bg-slate-950 border border-slate-900 rounded-lg p-2 text-slate-200 cursor-pointer"
+              >
+                <option value="completion">Completion</option>
+                <option value="participation">Participation</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-900">
+              <Button size="sm" variant="ghost" onClick={() => setCopyModal(null)} className="text-xs">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => copyTemplateToType(copyModal.id, copyType)}
+                isLoading={isCopying}
+                className="bg-brand-orange text-slate-950 font-bold hover:bg-brand-orange/90 text-xs"
+              >
+                <Copy size={12} /> Copy as {TYPE_CONFIG[copyType].short}
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
     </div>

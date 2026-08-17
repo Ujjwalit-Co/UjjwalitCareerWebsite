@@ -24,13 +24,14 @@ export const Navbar = () => {
   const links = [
     { href: '#programs', label: 'Programs' },
     { href: '#events', label: 'Events' },
-    { href: '#verification', label: 'Verification' },
+    { href: '/verify', label: 'Verification', isDirect: true },
     { href: '#about', label: 'About' },
   ];
 
-  const getHref = (href: string) => {
-    if (pathname === '/careers' || pathname === '/careers/') return href;
-    return `/careers${href}`;
+  const getHref = (link: typeof links[0]) => {
+    if (link.isDirect) return link.href;
+    if (pathname === '/careers' || pathname === '/careers/') return link.href;
+    return `/careers${link.href}`;
   };
 
   return (
@@ -48,7 +49,7 @@ export const Navbar = () => {
 
         <div className="hidden items-center gap-8 md:flex">
           {links.map((link) => (
-            <Link key={link.label} href={getHref(link.href)} className="text-sm font-semibold text-[#A1A1AA] transition-colors hover:text-[#F5F5F5]">
+            <Link key={link.label} href={getHref(link)} className="text-sm font-semibold text-[#A1A1AA] transition-colors hover:text-[#F5F5F5]">
               {link.label}
             </Link>
           ))}
@@ -75,7 +76,7 @@ export const Navbar = () => {
             {links.map((link) => (
               <Link
                 key={link.label}
-                href={getHref(link.href)}
+                href={getHref(link)}
                 onClick={() => setIsOpen(false)}
                 className="rounded-lg px-3 py-3 text-sm font-semibold text-[#F5F5F5] hover:bg-brand-surface"
               >

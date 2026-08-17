@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAdmin } from '@/lib/api-auth';
 import { generateLetterPDFFromTemplate } from '@/lib/generators/documents';
 import { getTrackLabel } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
-  const supabase = createAdminClient();
-
   try {
-    const { studentId, documentType, backgroundUrl } = await request.json();
+    // 1. Authenticate the admin
+    await requireAdmin();
+
+    const { studentId, documentType, backgroundUrl, performanceSummary, recommendationText } = await request.json();
 
     if (!studentId || !documentType) {
       return NextResponse.json(
@@ -16,6 +18,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = createAdminClient();
+
+    // 2. Fetch student details
     const { data: student, error: studentError } = await supabase
       .from('students')
       .select(`
@@ -27,6 +32,7 @@ export async function POST(request: NextRequest) {
           internship_track
         ),
         opportunity:opportunities (
+          id,
           duration_label
         )
       `)
@@ -48,14 +54,16 @@ export async function POST(request: NextRequest) {
     const programName = getTrackLabel(app.internship_track);
     const durationLabel = student.opportunity?.duration_label || '6 Weeks';
 
-    // Always fetch the saved template from DB — never rely on client state
+    // 3. Fetch template from DB
     const { data: savedTemplate } = await supabase
       .from('certificate_templates')
       .select('fields, background_url')
       .eq('name', `doc-${documentType}`)
       .maybeSingle();
+
     const templateFields = (savedTemplate?.fields || []) as any[];
 
+    // 4. Generate PDF from template
     const pdfBytes = await generateLetterPDFFromTemplate({
       studentName: app.full_name,
       studentCode: student.student_code,
@@ -68,50 +76,43 @@ export async function POST(request: NextRequest) {
       dateStr,
       backgroundUrl: backgroundUrl || savedTemplate?.background_url || undefined,
       fields: templateFields,
-      verificationUrl: `${process.env.NEXT_PUBLIC_VERIFY_URL || 'https://verify.ujjwalit.co.in'}/${student.student_code}`,
+      verificationUrl: `https://verify.ujjwalit.co.in/${student.student_code}`,
       qrUrl: 'https://careers.ujjwalit.co.in',
+      performanceSummary: performanceSummary || '',
+      recommendationText: recommendationText || '',
     });
 
     const fileName = `${studentId}/${documentType}.pdf`;
 
-    const ensureBucket = async () => {
-      const { data: buckets } = await supabase.storage.listBuckets();
-      const existing = buckets?.find((b) => b.name === 'letters');
-      if (!existing) {
-        await supabase.storage.createBucket('letters', { public: true });
-      } else if (!existing.public) {
-        await supabase.storage.updateBucket('letters', { public: true });
-      }
-    };
+    // Ensure bucket exists
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const existing = buckets?.find((b) => b.name === 'letters');
+    if (!existing) {
+      await supabase.storage.createBucket('letters', { public: true });
+    }
 
-    let { error: uploadError } = await supabase.storage
+    // 5. Upload document (replace if exists)
+    const { error: uploadError } = await supabase.storage
       .from('letters')
       .upload(fileName, pdfBytes, {
         contentType: 'application/pdf',
         upsert: true,
       });
 
-    if (uploadError?.message?.includes('Bucket not found')) {
-      await ensureBucket();
-      const { error: retryError } = await supabase.storage
-        .from('letters')
-        .upload(fileName, pdfBytes, {
-          contentType: 'application/pdf',
-          upsert: true,
-        });
-      if (retryError) throw new Error(`Upload error: ${retryError.message}`);
-    } else if (uploadError) {
+    if (uploadError) {
       throw new Error(`Upload error: ${uploadError.message}`);
     }
 
-    const { error: dbError } = await supabase.from('documents').insert({
+    // 6. Save or update database entry (idempotent unique constraint)
+    const { error: dbError } = await supabase.from('documents').upsert({
       student_id: studentId,
       document_type: documentType,
       document_url: fileName,
+      opportunity_id: student.opportunity?.id || null,
     });
 
     if (dbError) {
-      throw new Error(`Database record insert error: ${dbError.message}`);
+      throw new Error(`Database record save error: ${dbError.message}`);
     }
 
     const { data: { publicUrl } } = supabase.storage

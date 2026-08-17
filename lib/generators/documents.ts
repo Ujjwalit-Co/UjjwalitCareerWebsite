@@ -42,6 +42,8 @@ interface TemplateLetterParams {
   fields?: DocFieldConfig[];
   verificationUrl?: string;
   qrUrl?: string;
+  performanceSummary?: string;
+  recommendationText?: string;
 }
 
 const toTitleCase = (str: string): string => {
@@ -121,6 +123,8 @@ export async function generateLetterPDFFromTemplate({
   fields,
   verificationUrl,
   qrUrl,
+  performanceSummary = '',
+  recommendationText = '',
 }: TemplateLetterParams): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit as any);
@@ -223,7 +227,9 @@ export async function generateLetterPDFFromTemplate({
       .replace(/\{\{internship_title\}\}/g, programName)
       .replace(/\{\{startDate\}\}/g, startDate)
       .replace(/\{\{start_date\}\}/g, startDate)
-      .replace(/\{\{endDate\}\}/g, endDate);
+      .replace(/\{\{endDate\}\}/g, endDate)
+      .replace(/\{\{performance_summary\}\}/g, performanceSummary)
+      .replace(/\{\{recommendation_text\}\}/g, recommendationText);
 
     let font = standardFonts.Sans;
     if (isCustomFont(field.fontFamily)) {

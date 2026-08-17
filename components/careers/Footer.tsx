@@ -60,8 +60,18 @@ export const Footer = () => {
           </a>
         </div>
       </div>
-      <div className="mx-auto mt-6 max-w-7xl border-t border-brand-border pt-5 font-mono text-[11px] text-[#71717A]">
-        Copyright {currentYear} Ujjwalit Technologies. Registry verification active.
+      <div className="mx-auto mt-6 max-w-7xl border-t border-brand-border pt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 font-mono text-[11px] text-[#71717A]">
+        <div>
+          Copyright {currentYear} Ujjwalit Technologies. Registry verification active.
+        </div>
+        <div className="flex gap-4">
+          <Link href="/terms" className="hover:text-[#A1A1AA] transition-colors">
+            Terms &amp; Conditions
+          </Link>
+          <Link href="/privacy" className="hover:text-[#A1A1AA] transition-colors">
+            Privacy Policy
+          </Link>
+        </div>
       </div>
     </footer>
   );

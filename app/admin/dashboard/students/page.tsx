@@ -4,42 +4,25 @@ export const dynamic = 'force-dynamic';
 
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
-import { getTrackLabel, getCertificateTypeLabel } from '@/lib/utils';
 import {
-  Users,
   Search,
-  Edit2,
-  Trash2,
-  Save,
-  CheckCircle,
-  XCircle,
+  Users,
   Award,
-  Mail,
   FileText,
-  ShieldCheck,
+  Trash2,
+  Settings,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function StudentsManagement() {
+export default function GlobalStudentsRegistry() {
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  
-  // Edit Modal State
-  const [editingStudent, setEditingStudent] = useState<any | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [statementLibrary, setStatementLibrary] = useState<any[]>([]);
-  const [selectedStatementIds, setSelectedStatementIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchStudents = async () => {
-    setLoading(true);
+  const loadStudents = async () => {
     const supabase = createClient();
     try {
       const { data, error } = await supabase
@@ -50,547 +33,171 @@ export default function StudentsManagement() {
             full_name,
             email,
             college,
-            internship_track
+            branch
           ),
-          profile:student_profiles (
-            id
+          opportunity:opportunities (
+            title,
+            cohort_label
+          ),
+          certificates:certificates (
+            id,
+            certificate_id,
+            certificate_type,
+            status
           )
         `)
         .order('joined_at', { ascending: false });
 
       if (error) throw error;
       setStudents(data || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error('Failed to load student list');
+      toast.error('Failed to load students registry');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStudents();
+    loadStudents();
   }, []);
 
-  const fetchStatementLibrary = async () => {
+  const handleDeleteStudent = async (id: string, name: string) => {
+    const confirm = window.confirm(`Are you sure you want to delete ${name}? This will delete their student cohort history, certificate registries, and documents permanently.`);
+    if (!confirm) return;
+
     const supabase = createClient();
-    try {
-      const { data, error } = await supabase
-        .from('achievement_statements')
-        .select('id, label, body_markdown')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true })
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      setStatementLibrary(data || []);
-    } catch (err: any) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    fetchStatementLibrary();
-  }, []);
-
-  const handleEditOpen = async (student: any) => {
-    let profileRemarks = '';
-    if (student.profile?.id) {
-      try {
-        const supabase = createClient();
-        const { data: remarksRow } = await supabase
-          .from('student_profiles')
-          .select('remarks')
-          .eq('id', student.profile.id)
-          .maybeSingle();
-        profileRemarks = remarksRow?.remarks || '';
-      } catch {
-        // remarks column not present yet — leave empty
-      }
-    }
-
-    // Load the student's currently selected achievement statements
-    let selectedIds = new Set<string>();
-    const supabase = createClient();
-    try {
-      const { data: junctionRows } = await supabase
-        .from('student_achievement_statements')
-        .select('statement_id')
-        .eq('student_id', student.id);
-      selectedIds = new Set((junctionRows || []).map((r: any) => r.statement_id));
-    } catch (err: any) {
-      console.error(err);
-    }
-
-    setSelectedStatementIds(selectedIds);
-    setEditingStudent({
-      ...student,
-      attendance: student.attendance_percentage || 0,
-      projectSubmitted: student.project_submitted || false,
-      projectScore: student.project_score || 0,
-      batchName: student.batch_name || '',
-      certificateType: student.certificate_type || 'none',
-      profileRemarks,
-    });
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingStudent) return;
-
-    setIsSaving(true);
-    const supabase = createClient();
-
     try {
       const { error } = await supabase
         .from('students')
-        .update({
-          attendance_percentage: parseFloat(editingStudent.attendance),
-          project_submitted: editingStudent.projectSubmitted,
-          project_score: parseFloat(editingStudent.projectScore),
-          batch_name: editingStudent.batchName,
-          certificate_type: editingStudent.certificateType,
-          certificate_eligible: editingStudent.certificateType !== 'none',
-        })
-        .eq('id', editingStudent.id);
-
-      if (error) throw error;
-
-      // Sync the student's selected achievement statements (delete + insert)
-      const { error: delError } = await supabase
-        .from('student_achievement_statements')
         .delete()
-        .eq('student_id', editingStudent.id);
-      if (delError) throw delError;
+        .eq('id', id);
 
-      if (selectedStatementIds.size > 0) {
-        const { error: insError } = await supabase
-          .from('student_achievement_statements')
-          .insert(
-            Array.from(selectedStatementIds).map((statementId, idx) => ({
-              student_id: editingStudent.id,
-              statement_id: statementId,
-              display_order: idx,
-            }))
-          );
-        if (insError) throw insError;
-      }
-
-      // Persist profile remarks if the student has a linked profile
-      if (editingStudent.profile?.id) {
-        const { error: profileError } = await supabase
-          .from('student_profiles')
-          .update({
-            remarks: (editingStudent.profileRemarks || '').trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingStudent.profile.id);
-
-        if (profileError && profileError.code !== '42703') throw profileError;
-        if (profileError?.code === '42703') {
-          console.warn('remarks column not present yet — skipping remarks save.');
-        }
-      }
-
-      toast.success('Student record updated successfully');
-      setEditingStudent(null);
-      fetchStudents();
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || 'Failed to update student');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSendEmail = async (type: string) => {
-    if (!editingStudent) return;
-    setSendingEmail(type);
-    try {
-      const res = await fetch('/api/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId: editingStudent.id, type }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Email failed');
-      toast.success(`Email dispatched: ${type}`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to send email');
-    } finally {
-      setSendingEmail(null);
-    }
-  };
-
-  const handleDeleteStudent = async (student: any) => {
-    const app = student.application;
-    const confirmMessage = `Delete student ${app?.full_name} (${student.student_code})?\n\nThis will also delete associated documents and certificates. This cannot be undone.`;
-    if (!window.confirm(confirmMessage)) return;
-
-    setDeletingId(student.id);
-    const supabase = createClient();
-    try {
-      const { error } = await supabase.from('students').delete().eq('id', student.id);
       if (error) throw error;
-      toast.success(`Student ${student.student_code} deleted`);
-      fetchStudents();
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || 'Failed to delete student');
-    } finally {
-      setDeletingId(null);
+      toast.success('Student record deleted');
+      loadStudents();
+    } catch (err) {
+      toast.error('Failed to delete student');
     }
   };
 
-  const filteredStudents = students.filter((student) => {
-    const term = search.toLowerCase();
-    const name = student.application?.full_name?.toLowerCase() || '';
-    const code = student.student_code.toLowerCase();
-    const college = student.application?.college?.toLowerCase() || '';
-    const batch = student.batch_name.toLowerCase();
-
+  if (loading) {
     return (
-      name.includes(term) ||
-      code.includes(term) ||
-      college.includes(term) ||
-      batch.includes(term)
+      <div className="flex flex-col items-center justify-center p-12 space-y-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-orange border-r-2"></div>
+        <p className="text-slate-400 text-sm">Loading global student registry...</p>
+      </div>
     );
-  });
+  }
+
+  // Filter students based on search query
+  const filteredStudents = students.filter(s =>
+    s.application?.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.student_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.application?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.opportunity?.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-extrabold font-display tracking-tight text-white">
-          Manage Students
-        </h1>
-        <p className="text-slate-400 text-sm">
-          Track student engagement metrics, grading scores, and certificate issuance status.
-        </p>
-      </div>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-slate-900 pb-6">
+        <div>
+          <h1 className="text-3xl font-extrabold font-display tracking-tight text-white flex items-center gap-2">
+            <Users className="text-brand-orange" size={24} /> Students Registry
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Global repository to search, verify, and manage students across all programmes.
+          </p>
+        </div>
 
-      {/* Controls Bar */}
-      <Card variant="solid" className="p-4 bg-slate-900 border-slate-800 flex items-center justify-between gap-4">
-        {/* Search */}
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-3 top-3.5 text-slate-500" size={18} />
-          <Input
-            placeholder="Search code, name, batch..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 py-2"
+        <div className="relative max-w-xs w-full">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search by name, code, email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-950/80 border border-slate-900 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-brand-orange/40"
           />
         </div>
-      </Card>
+      </div>
 
-      {/* Table grid */}
-      <Card variant="glass" className="overflow-hidden border-slate-900 p-0">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center p-12 space-y-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-orange border-r-2"></div>
-            <p className="text-slate-450 text-xs">Querying student records...</p>
-          </div>
-        ) : filteredStudents.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-950/40 border-b border-slate-900 text-slate-500 font-semibold text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="px-6 py-4">Code</th>
-                  <th className="px-6 py-4">Intern</th>
-                  <th className="px-6 py-4">Batch</th>
-                  <th className="px-6 py-4">Attendance</th>
-                  <th className="px-6 py-4">Project</th>
-                  <th className="px-6 py-4">Certificate</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-900/60">
-                {filteredStudents.map((st) => {
-                  const app = st.application;
-                  return (
-                    <tr key={st.id} className="hover:bg-slate-900/10">
-                      <td className="px-6 py-4 font-mono font-bold text-slate-200 text-xs">{st.student_code}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-200">{app?.full_name}</span>
-                          <span className="text-xs text-slate-500">{getTrackLabel(app?.internship_track || '')}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-400 font-medium">{st.batch_name}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-850">
-                            <div
-                              className="bg-brand-teal h-full transition-all duration-300"
-                              style={{ width: `${st.attendance_percentage}%` }}
-                            />
-                          </div>
-                          <span className="font-semibold text-xs text-slate-300">
-                            {st.attendance_percentage}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {st.project_submitted ? (
-                          <div className="flex items-center gap-1.5 text-green-400 font-medium text-xs">
-                            <CheckCircle size={14} /> Submitted ({st.project_score})
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-slate-500 text-xs">
-                            <XCircle size={14} /> Pending
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {st.certificate_type !== 'none' ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-400 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded-full">
-                            <Award size={10} /> {getCertificateTypeLabel(st.certificate_type)}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 bg-slate-900 border border-slate-850 px-2 py-0.5 rounded-full">
-                            Not Eligible
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditOpen(st)}
-                            className="text-xs text-slate-450 hover:text-white hover:bg-slate-900 p-2 rounded-lg"
-                          >
-                            <Edit2 size={16} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteStudent(st)}
-                            disabled={deletingId === st.id}
-                            className="text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded-lg"
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="py-12 text-center text-slate-500">
-            No active students found matching criteria.
-          </div>
-        )}
-      </Card>
-
-      {/* Edit Student Modal */}
-      <Modal
-        isOpen={!!editingStudent}
-        onClose={() => setEditingStudent(null)}
-        title="Edit Student Record"
-      >
-        {editingStudent && (
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div className="space-y-1.5 border-b border-slate-900 pb-3 mb-2">
-              <h4 className="font-bold text-slate-100">{editingStudent.application?.full_name}</h4>
-              <p className="text-xs text-slate-500">
-                Student Code: <span className="font-mono font-bold text-slate-350">{editingStudent.student_code}</span>
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Batch Name"
-                value={editingStudent.batchName}
-                onChange={(e) => setEditingStudent({ ...editingStudent, batchName: e.target.value })}
-                required
-              />
-              <Input
-                label="Attendance Percentage (%)"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={editingStudent.attendance}
-                onChange={(e) => setEditingStudent({ ...editingStudent, attendance: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-900 pt-4">
-              {/* Project submitted checkbox */}
-              <div className="flex items-center gap-3 bg-slate-900/40 p-3 rounded-lg border border-slate-900">
-                <input
-                  type="checkbox"
-                  id="projectSubmitted"
-                  checked={editingStudent.projectSubmitted}
-                  onChange={(e) =>
-                    setEditingStudent({ ...editingStudent, projectSubmitted: e.target.checked })
-                  }
-                  className="h-4 w-4 bg-slate-950 border border-slate-800 rounded text-brand-teal focus:ring-brand-teal cursor-pointer"
-                />
-                <label htmlFor="projectSubmitted" className="text-sm font-medium text-slate-300 cursor-pointer select-none">
-                  Project Submitted
-                </label>
-              </div>
-
-              <Input
-                label="Project Score (out of 100)"
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={editingStudent.projectScore}
-                disabled={!editingStudent.projectSubmitted}
-                onChange={(e) => setEditingStudent({ ...editingStudent, projectScore: e.target.value })}
-                required
-              />
-            </div>
-
-            {/* Profile remarks */}
-            <div className="border-t border-slate-900 pt-4">
-              <label className="text-sm font-bold text-slate-200 block mb-1.5">
-                Profile Remarks (shown on public page)
-              </label>
-              <textarea
-                value={editingStudent.profileRemarks}
-                onChange={(e) =>
-                  setEditingStudent({ ...editingStudent, profileRemarks: e.target.value })
-                }
-                rows={4}
-                placeholder="e.g. Outstanding project delivery; led the frontend track of the AI capstone."
-                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-orange resize-y"
-              />
-              <p className="text-[10px] text-slate-500 mt-1.5">
-                Optional note displayed on the student&apos;s public profile page (verify.ujjwalit.co.in/student/{'{slug}'}).
-              </p>
-            </div>
-
-            {/* Certificate type selection */}
-            <div className="border-t border-slate-900 pt-4">
-              <label className="text-sm font-bold text-slate-200 block mb-1.5">
-                Certificate Type
-              </label>
-              <select
-                value={editingStudent.certificateType}
-                onChange={(e) =>
-                  setEditingStudent({ ...editingStudent, certificateType: e.target.value })
-                }
-                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-brand-orange cursor-pointer"
-              >
-                <option value="none">Not Eligible</option>
-                <option value="completion">Certificate of Completion</option>
-                <option value="participation">Certificate of Participation</option>
-              </select>
-              <p className="text-[10px] text-slate-500 mt-1.5">
-                Enables certificate generation for this student under the Registry page. Completion = full program,
-                Participation = attended an event/workshop.
-              </p>
-            </div>
-
-            {/* Achievement statement snippets (toggle selection) */}
-            <div className="border-t border-slate-900 pt-4">
-              <label className="text-sm font-bold text-slate-200 block mb-1.5">
-                Statement of Achievement
-              </label>
-              {statementLibrary.length === 0 ? (
-                <p className="text-xs text-slate-500">
-                  No achievement statements configured. Add snippets under <span className="text-brand-orange">Statements</span> in the admin panel.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {statementLibrary.map((stmt) => {
-                    const checked = selectedStatementIds.has(stmt.id);
-                    return (
-                      <label
-                        key={stmt.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                          checked
-                            ? 'border-brand-orange/40 bg-brand-orange/5'
-                            : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
-                        }`}
+      {/* Registry Table */}
+      <Card variant="glass" className="p-6">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-300">
+            <thead>
+              <tr className="border-b border-slate-900 text-slate-500 font-semibold text-xs uppercase tracking-wider pb-3">
+                <th className="pb-3">Code & Intern</th>
+                <th className="pb-3">Program & Cohort</th>
+                <th className="pb-3">Lifecycle Stage</th>
+                <th className="pb-3">Credentials</th>
+                <th className="pb-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-900/60">
+              {filteredStudents.map((s) => {
+                const activeCert = s.certificates?.find((c: any) => c.status === 'active');
+                return (
+                  <tr key={s.id} className="hover:bg-slate-900/5">
+                    <td className="py-4">
+                      <span className="text-xs font-mono text-cyan-400 block font-semibold">
+                        {s.student_code}
+                      </span>
+                      <span className="font-semibold text-slate-200 mt-0.5 block">
+                        {s.application?.full_name}
+                      </span>
+                      <span className="text-xs text-slate-500 block">
+                        {s.application?.email}
+                      </span>
+                    </td>
+                    <td className="py-4 text-xs text-slate-300">
+                      <div>{s.opportunity?.title || 'Unknown Program'}</div>
+                      <div className="text-slate-500 mt-0.5 font-mono text-[10px]">
+                        {s.opportunity?.cohort_label || s.batch_name}
+                      </div>
+                    </td>
+                    <td className="py-4 text-xs">
+                      <Badge variant={s.stage === 'completed' ? 'success' : s.stage === 'active' ? 'primary' : 'default'}>
+                        {s.stage}
+                      </Badge>
+                    </td>
+                    <td className="py-4 text-xs">
+                      {activeCert ? (
+                        <span className="text-green-400 font-semibold flex items-center gap-1.5" title={activeCert.certificate_id}>
+                          <Award size={14} /> Certified
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 flex items-center gap-1.5">
+                          <FileText size={14} /> No Certificate
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-4 text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteStudent(s.id, s.application?.full_name)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer text-xs"
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            const next = new Set(selectedStatementIds);
-                            if (e.target.checked) next.add(stmt.id);
-                            else next.delete(stmt.id);
-                            setSelectedStatementIds(next);
-                          }}
-                          className="h-4 w-4 mt-0.5 bg-slate-950 border border-slate-800 rounded text-brand-orange focus:ring-brand-orange cursor-pointer"
-                        />
-                        <div className="min-w-0">
-                          <span className="text-sm font-semibold text-slate-200">{stmt.label}</span>
-                          <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line">{stmt.body_markdown}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
+                        <Trash2 size={14} />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredStudents.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-slate-500 text-xs">
+                    No matching student records found in registry.
+                  </td>
+                </tr>
               )}
-              <p className="text-[10px] text-slate-500 mt-1.5">
-                Toggle the skills/achievements to highlight. Selected statements are composed on the student&apos;s public profile.
-              </p>
-            </div>
-
-            {/* Email Triggers Section */}
-            <div className="border-t border-slate-900 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 mb-3">Send Email</p>
-              <div className="grid grid-cols-1 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleSendEmail('acceptance')}
-                  disabled={!!sendingEmail}
-                  isLoading={sendingEmail === 'acceptance'}
-                  className="gap-2 justify-start text-brand-orange border-brand-orange/20 hover:bg-brand-orange/5"
-                >
-                  <Mail size={14} /> Send Offer / Acceptance Email
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleSendEmail('onboarding')}
-                  disabled={!!sendingEmail}
-                  isLoading={sendingEmail === 'onboarding'}
-                  className="gap-2 justify-start text-brand-blue border-brand-blue/20 hover:bg-brand-blue/5"
-                >
-                  <FileText size={14} /> Send Onboarding Email
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleSendEmail('completion')}
-                  disabled={!!sendingEmail}
-                  isLoading={sendingEmail === 'completion'}
-                  className="gap-2 justify-start text-green-400 border-green-500/20 hover:bg-green-500/5"
-                >
-                  <ShieldCheck size={14} /> Send Completion Email
-                </Button>
-              </div>
-            </div>
-
-            <div className="pt-4 flex justify-end gap-2.5">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditingStudent(null)}
-                disabled={isSaving}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" isLoading={isSaving} className="gap-1.5 bg-brand-orange font-bold">
-                <Save size={16} /> Save Changes
-              </Button>
-            </div>
-          </form>
-        )}
-      </Modal>
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }
-

@@ -96,6 +96,9 @@ CREATE TABLE students (
   project_score NUMERIC(5,2) DEFAULT 0 CHECK (project_score BETWEEN 0 AND 100),
   certificate_eligible BOOLEAN DEFAULT FALSE,
   certificate_type TEXT NOT NULL DEFAULT 'none' CHECK (certificate_type IN ('none', 'completion', 'participation')),
+  acceptance_email_sent_at TIMESTAMPTZ,
+  onboarding_email_sent_at TIMESTAMPTZ,
+  completion_email_sent_at TIMESTAMPTZ,
   joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

@@ -28,6 +28,13 @@ export async function GET(
         certificate_pdf_url,
         status,
         issued_at,
+        opportunity:opportunities (
+          id,
+          title,
+          description,
+          slug,
+          type
+        ),
         student:students (
           id,
           student_code,
@@ -54,6 +61,22 @@ export async function GET(
         { error: 'Certificate not found or invalid' },
         { status: 404 }
       );
+    }
+
+    // Fallback: if opportunity join is null (legacy cert with no opportunity_id),
+    // look it up by the slug stored in the application's internship_track field
+    if (!certificate.opportunity) {
+      const trackSlug = (certificate as any).student?.application?.internship_track;
+      if (trackSlug) {
+        const { data: fallbackOpp } = await supabase
+          .from('opportunities')
+          .select('id, title, description, slug, type')
+          .eq('slug', trackSlug)
+          .maybeSingle();
+        if (fallbackOpp) {
+          (certificate as any).opportunity = fallbackOpp;
+        }
+      }
     }
 
     return NextResponse.json({ certificate });

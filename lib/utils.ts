@@ -16,17 +16,29 @@ export function generateProfileSlug(year: number, index: number): string {
   return `UJP-${year}-${String(index).padStart(4, '0')}`;
 }
 
+// Derive a stable 2-letter track code from a track name or opportunity slug.
+// internship_track is stored as the opportunity slug (e.g. 'web-development-internship'),
+// so we normalize it instead of relying on an exact match.
+export function getCertificateTrackCode(track: string): string {
+  const normalized = (track || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (normalized.includes('ai') && !normalized.includes('web')) return 'AI';
+  if (normalized.includes('web') || normalized.startsWith('wd')) return 'WD';
+  if (normalized.includes('data')) return 'DA';
+  if (normalized.includes('ml')) return 'ML';
+  if (normalized.includes('app')) return 'AP';
+  return 'GEN';
+}
+
 // Generate certificate ID: UJ-{TRACK}-[{TYPE}-]{YEAR}-{NUMBER}
 // e.g. UJ-WD-2026-001 (completion), UJ-WD-A-2026-001 (achievement), UJ-WD-P-2026-001 (participation)
 export function generateCertificateId(
-  track: 'web-development' | 'fullstack-ai',
+  track: string,
   year: number,
   index: number,
   type: CertificateType = 'completion'
 ): string {
-  const trackCode = track === 'web-development' ? 'WD' : 'AI';
   const typeCode = type === 'completion' ? '' : `-${type === 'achievement' ? 'A' : 'P'}`;
-  return `UJ-${trackCode}${typeCode}-${year}-${String(index).padStart(3, '0')}`;
+  return `UJ-${getCertificateTrackCode(track)}${typeCode}-${year}-${String(index).padStart(3, '0')}`;
 }
 
 // Human label for a certificate type
