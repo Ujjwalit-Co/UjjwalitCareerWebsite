@@ -1,4 +1,7 @@
-﻿# Ujjwalit Developers Program Platform
+﻿# Ujjwalit Developers Program Platform 
+ Available at: careers.ujjwalit.co.in   
+ - admin.ujjwalit.co.in
+ - verify.ujjwalit.co.in
 
 A full-stack platform for the Ujjwalit Developers Program: internship application handling, admin-managed opportunities, program pipeline management (accept → onboard → grade → complete), email workflows, and a tamper-proof certificate verification system with public student credential profiles.
 
