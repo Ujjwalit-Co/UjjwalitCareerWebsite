@@ -10,9 +10,10 @@ interface SendMailParams {
   to: string;
   subject: string;
   html: string;
+  attachments?: { filename: string; content: Buffer | string }[];
 }
 
-export async function sendEmail({ to, subject, html }: SendMailParams) {
+export async function sendEmail({ to, subject, html, attachments }: SendMailParams) {
   try {
     if (!process.env.RESEND_API_KEY) {
       console.warn('RESEND_API_KEY is not defined. Email dispatch skipped.');
@@ -24,6 +25,7 @@ export async function sendEmail({ to, subject, html }: SendMailParams) {
       to,
       subject,
       html,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
     });
 
     if (error) throw error;
@@ -77,21 +79,124 @@ export function getOnboardingEmailHtml(name: string, track: string, code: string
   `;
 }
 
-export function getCompletionEmailHtml(name: string, track: string, certId: string): string {
+export function getCompletionEmailHtml(name: string, track: string, certId: string, profileUrl: string): string {
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1e293b;">
-      <h2 style="color: #0f172a; border-bottom: 2px solid #22c55e; padding-bottom: 10px;">Program Completion Certificate</h2>
-      <p>Dear <strong>${name}</strong>,</p>
-      <p>Congratulations on successfully completing the <strong>${track}</strong> program at <strong>Ujjwalit Technologies</strong>.</p>
-      <p>Your digital certificate has been issued and registered. Certificate ID: <strong>${certId}</strong>.</p>
-      <div style="margin: 25px 0; text-align: center;">
-        <a href="${verifyUrl}/${certId}" style="background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Certificate</a>
-      </div>
-      <p>You can share the verification link with recruiters or add it to your portfolio.</p>
-      <br />
-      <p>Warm regards,</p>
-      <p><strong>Ujjwalit Technologies Team</strong><br /><a href="https://ujjwalit.co.in">ujjwalit.co.in</a></p>
-    </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Certificate of Completion — Ujjwalit</title>
+  <style>
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #0b1120 !important;
+      }
+      .container {
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
+      }
+      .header-bg {
+        background-color: #3B82F6 !important;
+      }
+      .header-text {
+        color: #ffffff !important;
+      }
+      .body-text {
+        color: #e2e8f0 !important;
+      }
+      .section-bg {
+        background-color: #334155 !important;
+        border-color: #475569 !important;
+      }
+      .link-text {
+        color: #F97316 !important;
+      }
+      .footer-bg {
+        background-color: #0f172a !important;
+        color: #94a3b8 !important;
+      }
+      .footer-link {
+        color: #94a3b8 !important;
+      }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, Helvetica, sans-serif; background-color: #f8fafc;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color: #f8fafc;">
+    <tr>
+      <td align="center" style="padding: 32px 16px;">
+
+        <!-- Email Container -->
+        <table class="container" width="600" cellpadding="0" cellspacing="0" border="0" role="presentation" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <tr>
+            <td class="header-bg" align="center" style="background-color: #3B82F6; padding: 36px 24px; color: #ffffff;">
+              <h1 class="header-text" style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 0.5px;">Ujjwalit Developers Program</h1>
+              <p class="header-text" style="font-size: 18px; margin-top: 10px; font-weight: 600; opacity: 0.9;">Certificate of Completion</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 36px 32px; color: #334155; line-height: 1.7;">
+              <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 22px;">Congratulations, ${name}!</h2>
+              <p class="body-text" style="font-size: 16px; margin: 0 0 16px 0;">
+                We are thrilled to celebrate your successful completion of the
+                <strong style="color: #F97316;">${track}</strong> program. Your hard work and dedication have truly paid off!
+              </p>
+
+              <!-- Certificate & Badge Section -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" class="section-bg" style="background-color: #f0f4f8; border: 1px solid #e0e7ef; border-radius: 10px; margin: 24px 0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h3 style="margin: 0 0 12px 0; color: #1e3a8a; font-size: 18px;">Access Your Credentials</h3>
+                    <p class="body-text" style="font-size: 15px; margin: 0 0 16px 0;">
+                      Your Certificate ID: <strong style="color: #1e3a8a; font-family: Consolas, Menlo, monospace;">${certId}</strong>
+                    </p>
+                    <div style="text-align: center; margin-bottom: 16px;">
+                      <a href="${profileUrl}" class="link-text" style="background-color: #F97316; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                        View & Download Certificate and Badge →
+                      </a>
+                    </div>
+                    <p class="body-text" style="font-size: 14px; color: #64748b; margin: 0;">
+                      This link will take you to your personal verification page where you can download your official certificate and shareable badge.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p class="body-text" style="font-size: 16px; margin: 0 0 16px 0;">
+                If you are interested in a Letter of Recommendation, please reply to this email within this week to initiate your request.
+              </p>
+
+              <p class="body-text" style="font-size: 16px; margin: 0; color: #334155;">
+                Warm regards,<br>
+                <strong style="color: #1e3a8a;">The Ujjwalit Team</strong><br>
+                <span style="font-size: 13px; color: #64748b;">Ujjwalit Technologies Pvt. Ltd.</span>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td class="footer-bg" align="center" style="background-color: #0f172a; padding: 20px 24px; color: #94a3b8; font-size: 13px;">
+              <p style="margin: 0;">© 2026 Ujjwalit Technologies Pvt. Ltd. All rights reserved.</p>
+              <p style="margin: 6px 0 0 0;">
+                <a href="https://verify.ujjwalit.co.in" class="footer-link" style="color: #94a3b8; text-decoration: none;">Verify a credential</a>
+                &nbsp;·&nbsp;
+                <a href="https://careers.ujjwalit.co.in" class="footer-link" style="color: #94a3b8; text-decoration: none;">Explore programs</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
   `;
 }
 

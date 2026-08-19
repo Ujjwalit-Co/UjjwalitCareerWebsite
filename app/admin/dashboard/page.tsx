@@ -239,7 +239,11 @@ export default function CommandCenterDashboard() {
     try {
       let query = supabase.from(cfg.table).select(cfg.select, { count: 'exact' });
       if (oppFilter !== 'all') query = query.eq('opportunity_id', oppFilter);
-      if (statusFilter !== 'all') query = query.eq(cfg.statusCol, statusFilter);
+      if (tab === 'certificates' && (statusFilter === 'all' || statusFilter === 'active')) {
+        query = query.eq(cfg.statusCol, 'active');
+      } else if (statusFilter !== 'all') {
+        query = query.eq(cfg.statusCol, statusFilter);
+      }
       if (dateFrom) query = query.gte(cfg.dateCol, `${dateFrom}T00:00:00`);
       if (dateTo) query = query.lte(cfg.dateCol, `${dateTo}T23:59:59`);
       const q = searchQuery.trim().toLowerCase();
@@ -274,7 +278,11 @@ export default function CommandCenterDashboard() {
     try {
       let query = supabase.from(cfg.table).select(cfg.select);
       if (oppFilter !== 'all') query = query.eq('opportunity_id', oppFilter);
-      if (statusFilter !== 'all') query = query.eq(cfg.statusCol, statusFilter);
+      if (tab === 'certificates' && (statusFilter === 'all' || statusFilter === 'active')) {
+        query = query.eq(cfg.statusCol, 'active');
+      } else if (statusFilter !== 'all') {
+        query = query.eq(cfg.statusCol, statusFilter);
+      }
       if (dateFrom) query = query.gte(cfg.dateCol, `${dateFrom}T00:00:00`);
       if (dateTo) query = query.lte(cfg.dateCol, `${dateTo}T23:59:59`);
       const q = searchQuery.trim().toLowerCase();
@@ -350,7 +358,7 @@ export default function CommandCenterDashboard() {
     ? ['pending', 'reviewing', 'accepted', 'rejected', 'waitlisted']
     : tab === 'students'
       ? ['accepted', 'active', 'completed', 'archived']
-      : ['active', 'revoked'];
+      : ['active'];
 
   const totalPages = Math.max(1, Math.ceil(records.total / PAGE_SIZE));
   const pageStart = records.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;

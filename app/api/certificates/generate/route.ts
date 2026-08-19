@@ -73,11 +73,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Always issue a fresh certificate ID + verification hash, even on regeneration,
-    // so the new certificate replaces (and invalidates) the previous one.
+    // On regeneration, preserve the original certificate ID, verification hash,
+    // and verification URL so any link already shared keeps working. Only the
+    // PDF is re-rendered with the student's current data.
     const nextIndex = await getNextCertificateIndex(supabase, app.internship_track, currentYear, certificateType);
-    const certificateId = generateCertificateId(app.internship_track, currentYear, nextIndex, certificateType);
-    const verificationHash = generateVerificationHash();
+    const certificateId =
+      existingCert && forceRegenerate
+        ? existingCert.certificate_id
+        : generateCertificateId(app.internship_track, currentYear, nextIndex, certificateType);
+
+    const verificationHash =
+      existingCert && forceRegenerate
+        ? existingCert.verification_hash
+        : generateVerificationHash();
 
     // Verification URL points to the individual certificate registry page
     const verificationUrl = `https://verify.ujjwalit.co.in/${certificateId}`;

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { PlaceholderGuide } from '@/components/admin/PlaceholderGuide';
+import { getTrackLabel } from '@/lib/utils';
 import {
   FileText,
   Users,
@@ -21,6 +22,9 @@ import {
   Search,
   Trash2,
   LayoutTemplate,
+  Eye,
+  X,
+  Send,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -68,8 +72,16 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
 
   // Modal / Inline forms
   const [editingStudent, setEditingStudent] = useState<any>(null);
-  const [lorBlurb, setLorBlurb] = useState({ performance: '', text: '' });
-  const [showLorModal, setShowLorModal] = useState<string | null>(null);
+
+  // Dispatch email preview modal
+  const [dispatchModal, setDispatchModal] = useState(false);
+  const [dispatchSingleId, setDispatchSingleId] = useState<string | null>(null);
+  const [dispatchPreviewId, setDispatchPreviewId] = useState<string | null>(null);
+  const [dispatchTemplate, setDispatchTemplate] = useState<{ subject: string; body_html: string; is_enabled: boolean } | null>(null);
+  const [dispatchTemplateLoading, setDispatchTemplateLoading] = useState(false);
+  const [dispatchAttachCert, setDispatchAttachCert] = useState(true);
+  const [dispatchAttachLor, setDispatchAttachLor] = useState(true);
+  const [dispatchTesting, setDispatchTesting] = useState(false);
 
   const loadPipelineData = async () => {
     setLoading(true);
@@ -423,15 +435,11 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
         body: JSON.stringify({
           studentId,
           documentType: 'recommendation',
-          performanceSummary: lorBlurb.performance,
-          recommendationText: lorBlurb.text,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         toast.success('Recommendation letter generated successfully!', { id: resolveToast });
-        setShowLorModal(null);
-        setLorBlurb({ performance: '', text: '' });
         loadPipelineData();
       } else {
         toast.error(data.error || 'Failed to generate document', { id: resolveToast });
@@ -441,58 +449,223 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
     }
   };
 
-  const handleSendCompletionEmail = async (studentId: string) => {
-    const resolveToast = toast.loading('Dispatching completion email...');
+  const handleSendCompletionEmail = (studentId: string) => {
+    openDispatchModal(studentId);
+  };
+
+  const handleRevokeCertificate = async (certificateId: string, studentName: string) => {
+    const confirm = window.confirm(
+      `Revoke certificate ${certificateId} for ${studentName}?\n\nIts verification link will show "Certificate Revoked" instead of being removed. This cannot be undone by the UI (regenerating creates a new certificate).`
+    );
+    if (!confirm) return;
+    const resolveToast = toast.loading('Revoking certificate...');
     try {
-      const res = await fetch('/api/email/send', {
+      const res = await fetch('/api/certificates/revoke', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, type: 'completion' }),
+        body: JSON.stringify({ certificateId }),
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success('Certificate dispatched successfully!', { id: resolveToast });
+        toast.success(`Certificate ${certificateId} revoked`, { id: resolveToast });
         loadPipelineData();
       } else {
-        toast.error(data.error || 'Failed to send certificate email', { id: resolveToast });
+        toast.error(data.error || 'Failed to revoke certificate', { id: resolveToast });
       }
     } catch (err) {
-      toast.error('Failed to connect to mail API', { id: resolveToast });
+      toast.error('Failed to connect to the API', { id: resolveToast });
+    }
+  };
+
+  const dispatchCandidates = () => {
+    if (dispatchSingleId) {
+      return completedStus.filter((s) => s.id === dispatchSingleId && s.certificates?.some((c: any) => c.status === 'active'));
+    }
+    if (selectedIds.length === 0) return [];
+    return completedStus.filter((s) => selectedIds.includes(s.id) && s.certificates?.some((c: any) => c.status === 'active'));
+  };
+
+  const fillEmailPlaceholders = (text: string, stu: any) => {
+    const app = stu.application || {};
+    const activeCert = stu.certificates?.find((c: any) => c.status === 'active');
+    const repl: Record<string, string> = {
+      '{{name}}': app.full_name || 'Student',
+      '{{track}}': getTrackLabel(app.internship_track),
+      '{{code}}': stu.student_code || '',
+      '{{certId}}': activeCert?.certificate_id || '',
+    };
+    return (text || '').replace(/{{[a-zA-Z_]+}}/g, (match) => repl[match] ?? match);
+  };
+
+  const openDispatchModal = async (studentId?: string) => {
+    if (studentId) {
+      setDispatchSingleId(studentId);
+      const stu = completedStus.find((s) => s.id === studentId);
+      if (!stu || !stu.certificates?.some((c: any) => c.status === 'active')) {
+        toast.error('This intern has no active certificate yet. Issue a certificate first.');
+        return;
+      }
+    } else {
+      setDispatchSingleId(null);
+      const toSend = dispatchCandidates();
+      if (toSend.length === 0) {
+        const skipped = selectedIds.length - toSend.length;
+        toast.error(skipped > 0 ? 'None of the selected interns have an active certificate yet. Issue certificates first.' : 'No interns selected');
+        return;
+      }
+    }
+    const previewId = studentId || dispatchCandidates()[0]?.id || null;
+    setDispatchModal(true);
+    setDispatchPreviewId(previewId);
+    setDispatchAttachCert(true);
+    setDispatchAttachLor(true);
+    setDispatchTemplateLoading(true);
+    setDispatchTemplate(null);
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('email_templates')
+        .select('subject, body_html, is_enabled')
+        .eq('template_key', 'completion')
+        .maybeSingle();
+      setDispatchTemplate(data || null);
+    } catch (err) {
+      console.error(err);
+      setDispatchTemplate(null);
+    } finally {
+      setDispatchTemplateLoading(false);
+    }
+  };
+
+  const handleTestDispatchEmail = async () => {
+    const stu = dispatchCandidates().find((s) => s.id === dispatchPreviewId) || dispatchCandidates()[0];
+    if (!stu) return;
+    setDispatchTesting(true);
+    const toastId = toast.loading('Sending test email to your inbox...');
+    try {
+      const res = await fetch('/api/email/send-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'completion',
+          studentId: stu.id,
+          subject: dispatchTemplate?.subject,
+          body_html: dispatchTemplate?.body_html,
+          attachCertificate: dispatchAttachCert,
+          attachLor: dispatchAttachLor,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Test email sent to ${data.to}`, { id: toastId });
+      } else {
+        toast.error(data.error || 'Test email failed', { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Failed to connect to the mail API', { id: toastId });
+    } finally {
+      setDispatchTesting(false);
     }
   };
 
   const handleBatchSendCompletionEmails = async () => {
-    if (selectedIds.length === 0) {
-      toast.error('No interns selected');
+    const candidates = dispatchCandidates();
+    const studentIds = candidates.map((s) => s.id);
+    const skippedInitial = selectedIds.length - candidates.length; // Students selected but without active certs
+
+    if (studentIds.length === 0) {
+      toast.error(skippedInitial > 0 ? 'None of the selected interns have an active certificate yet. Issue certificates first.' : 'No interns selected');
       return;
     }
-    const toSend = completedStus.filter((s) => selectedIds.includes(s.id) && s.certificates?.some((c: any) => c.status === 'active'));
-    const skipped = selectedIds.length - toSend.length;
-    if (toSend.length === 0) {
-      toast.error(skipped > 0 ? 'None of the selected interns have an active certificate yet. Issue certificates first.' : 'No interns selected');
-      return;
-    }
-    const resolveToast = toast.loading(`Dispatching completion emails to ${toSend.length} intern(s)...`);
+
+    let toastId = toast.loading('Enqueuing completion emails...');
+
     try {
-      const results = await Promise.allSettled(
-        toSend.map((s) =>
-          fetch('/api/email/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ studentId: s.id, type: 'completion' }),
-          })
-        )
-      );
-      const sent = results.filter((r) => r.status === 'fulfilled' && (r.value as Response).ok).length;
-      const failed = results.length - sent;
-      toast.success(
-        `Sent ${sent} completion email${sent === 1 ? '' : 's'}${failed > 0 ? `, ${failed} failed` : ''}${skipped > 0 ? `, skipped ${skipped} without certs` : ''}`,
-        { id: resolveToast }
-      );
+      // Enqueue jobs
+      const enqueueRes = await fetch('/api/email/queue/enqueue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentIds,
+          type: 'completion',
+          attachCertificate: dispatchAttachCert,
+          attachLor: dispatchAttachLor,
+        }),
+      });
+      const enqueueData = await enqueueRes.json();
+
+      if (!enqueueRes.ok) throw new Error(enqueueData.error || 'Failed to enqueue emails');
+
+      const totalEnqueued = enqueueData.enqueued;
+      const skippedDuringEnqueue = enqueueData.skipped; // Already pending/sent
+
+      if (totalEnqueued === 0 && skippedDuringEnqueue > 0) {
+        toast.success(`All selected emails are already in the queue or sent.`, { id: toastId });
+        setDispatchModal(false);
+        setSelectedIds([]);
+        loadPipelineData();
+        return;
+      } else if (totalEnqueued === 0) {
+        toast.error('No emails were enqueued. Check if students have active certificates.', { id: toastId });
+        return;
+      }
+
+      toast.loading(`Enqueued ${totalEnqueued} email(s). Processing...`, { id: toastId });
+
+      let sent = 0;
+      let failed = 0;
+      let processedInIteration = 0;
+      let totalRemainingInQueue = totalEnqueued;
+      let rateLimitHit = false;
+      const POLLING_INTERVAL_MS = 2000; // Poll every 2 seconds
+
+      // Polling loop to process the queue
+      while (totalRemainingInQueue > 0 && !rateLimitHit) {
+        const processRes = await fetch('/api/email/queue/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // The backend defines its own batch size and delay, so no need to send it here
+        });
+        const processData = await processRes.json();
+
+        if (!processRes.ok) throw new Error(processData.error || 'Failed to process email queue');
+
+        sent += processData.sent;
+        failed += processData.failed;
+        totalRemainingInQueue = processData.remaining;
+        rateLimitHit = processData.rateLimited;
+        processedInIteration = processData.processed; // How many were processed in THIS call to the route
+
+        const currentStatus = `Sent ${sent}${failed > 0 ? `, ${failed} failed` : ''}${rateLimitHit ? ' (rate limit hit)' : ''}... ${totalRemainingInQueue} remaining`;
+        toast.loading(currentStatus, { id: toastId });
+
+        if (totalRemainingInQueue === 0 || rateLimitHit || (processedInIteration === 0 && (sent + failed) > 0)) {
+          // Queue is empty, rate limit hit, or no jobs were processed in an iteration (but some were sent/failed) -> stop polling
+          break;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
+      }
+
+      // Final toast message
+      let finalMessage = `Successfully processed ${sent + failed} email(s): ${sent} sent, ${failed} failed.`;
+      if (skippedInitial > 0) finalMessage += `, skipped ${skippedInitial} initially (no active certs).`;
+      if (skippedDuringEnqueue > 0) finalMessage += ` ${skippedDuringEnqueue} already in queue.`;
+      if (rateLimitHit) finalMessage += ` Sending paused due to Resend rate limits. ${totalRemainingInQueue} remaining in queue.`;
+      else if (totalRemainingInQueue > 0) finalMessage += ` ${totalRemainingInQueue} remaining in queue.`; // Should not happen if loop correctly exits
+
+      if (failed > 0 || rateLimitHit) {
+        toast.error(finalMessage, { id: toastId, duration: 8000 });
+      } else {
+        toast.success(finalMessage, { id: toastId, duration: 5000 });
+      }
+
+      setDispatchModal(false);
       setSelectedIds([]);
       loadPipelineData();
-    } catch (err) {
-      toast.error('Bulk email dispatch failed', { id: resolveToast });
+    } catch (err: any) {
+      console.error('Bulk email dispatch UI error:', err);
+      toast.error(err.message || 'Bulk email dispatch failed', { id: toastId });
     }
   };
 
@@ -921,10 +1094,10 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setShowLorModal(stu.id)}
+                        onClick={() => handleGenerateRecommendation(stu.id)}
                         className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 cursor-pointer text-xs"
                       >
-                        Write LOR
+                        Generate LOR
                       </Button>
                       <Button
                         size="sm"
@@ -969,7 +1142,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={handleBatchSendCompletionEmails}
+                  onClick={() => openDispatchModal()}
                   disabled={selectedIds.length === 0}
                   className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 border border-cyan-500/20 cursor-pointer text-xs disabled:opacity-40"
                 >
@@ -1001,6 +1174,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
               <tbody className="divide-y divide-slate-900/60">
                 {completedStus.map((stu) => {
                   const activeCert = stu.certificates?.find((c: any) => c.status === 'active');
+                  const allCerts = (stu.certificates || []).filter((c: any) => c.status === 'active');
                   const lorDoc = stu.documents?.find((d: any) => d.document_type === 'recommendation');
                   const isChecked = selectedIds.includes(stu.id);
 
@@ -1019,10 +1193,18 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
                         <div className="text-xs text-slate-500 font-mono mt-0.5">{stu.student_code}</div>
                       </td>
                       <td className="py-4 text-xs font-mono text-slate-400">
-                        {activeCert ? (
-                          <div className="space-y-0.5">
-                            <span className="text-green-400 font-semibold">{activeCert.certificate_id}</span>
-                            <span className="block text-[10px] text-slate-500">Hash: {activeCert.id.slice(0,8)}...</span>
+                        {allCerts.length > 0 ? (
+                          <div className="space-y-1">
+                            {allCerts.map((c: any) => (
+                              <div key={c.id} className="space-y-0.5">
+                                <span className="text-green-400 font-semibold">
+                                  {c.certificate_id}
+                                </span>
+                                <span className="block text-[10px] text-slate-500 capitalize">
+                                  {c.certificate_type}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <span className="text-slate-500">Pending Issuance</span>
@@ -1030,16 +1212,25 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
                       </td>
                       <td className="py-4 text-xs">
                         <div className="space-y-1">
-                          {activeCert?.certificate_pdf_url && (
-                            <a
-                              href={storagePublicUrl('certificates', activeCert.certificate_pdf_url)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center text-brand-orange hover:underline gap-1 font-semibold"
-                            >
-                              <Award size={12} /> Certificate PDF
-                            </a>
-                          )}
+                          {allCerts.map((c: any) => (
+                            <div key={c.id} className="flex items-center gap-2">
+                              <a
+                                href={c.certificate_pdf_url ? storagePublicUrl('certificates', c.certificate_pdf_url) : undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 font-semibold text-brand-orange hover:underline"
+                              >
+                                <Award size={12} /> {c.certificate_type === 'participation' ? 'Participation PDF' : 'Certificate PDF'}
+                              </a>
+                              <button
+                                onClick={() => handleRevokeCertificate(c.certificate_id, stu.application?.full_name)}
+                                className="inline-flex items-center gap-0.5 text-red-400/80 hover:text-red-300 text-[10px] font-semibold cursor-pointer"
+                                title="Revoke this certificate"
+                              >
+                                <XCircle size={11} /> Revoke
+                              </button>
+                            </div>
+                          ))}
                           {lorDoc && (
                             <a
                               href={storagePublicUrl('letters', lorDoc.document_url)}
@@ -1075,10 +1266,10 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => setShowLorModal(stu.id)}
+                          onClick={() => handleGenerateRecommendation(stu.id)}
                           className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 cursor-pointer text-xs"
                         >
-                          Write LOR
+                          Generate LOR
                         </Button>
                         <Button
                           size="sm"
@@ -1271,51 +1462,164 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
         </div>
       )}
 
-      {/* LOR Writing overlay modal */}
-      {showLorModal && (
+      {/* Certificate generation modal with template picker */}
+      {dispatchModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <Card variant="solid" className="max-w-lg w-full p-6 space-y-4 bg-slate-950 border border-slate-900 text-slate-100">
-            <h3 className="text-lg font-bold text-slate-100 border-b border-slate-900 pb-2">
-              Compose Letter of Recommendation (LOR)
-            </h3>
+          <Card variant="solid" className="max-w-2xl w-full p-6 space-y-4 bg-slate-950 border border-slate-900 text-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-900 pb-2">
+              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Mail size={16} className="text-cyan-400" />
+                Dispatch Completion Emails ({dispatchCandidates().length})
+              </h3>
+              <button onClick={() => setDispatchModal(false)} className="text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
 
             <div className="space-y-3 text-xs">
-              <div className="space-y-1">
-                <label className="text-slate-400 font-semibold block">Performance Summary Blurb</label>
-                <textarea
-                  rows={3}
-                  placeholder="e.g., John exhibited strong technical proficiency in Frontend Development, maintaining a 92% attendance rate and grading in the top 5% of his cohort."
-                  value={lorBlurb.performance}
-                  onChange={(e) => setLorBlurb({ ...lorBlurb, performance: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-900 rounded-lg p-2 text-slate-200 font-sans resize-none"
-                />
-              </div>
+              {dispatchCandidates().length === 0 ? (
+                <p className="text-slate-400">No selected interns have an active certificate. Issue certificates first.</p>
+              ) : (
+                <>
+                  {/* Recipient selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-400 font-semibold block">Preview recipient</label>
+                    <select
+                      value={dispatchPreviewId || ''}
+                      onChange={(e) => setDispatchPreviewId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 cursor-pointer"
+                    >
+                      {dispatchCandidates().map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.application?.full_name} — {s.certificates?.find((c: any) => c.status === 'active')?.certificate_id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="space-y-1">
-                <label className="text-slate-400 font-semibold block">Detailed Recommendation Text</label>
-                <textarea
-                  rows={6}
-                  placeholder="e.g., We strongly recommend him for any entry-level roles in Software Engineering. His dedication and focus on engineering standards make him an asset."
-                  value={lorBlurb.text}
-                  onChange={(e) => setLorBlurb({ ...lorBlurb, text: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-900 rounded-lg p-2 text-slate-200 font-sans resize-none"
-                />
-              </div>
+                  {dispatchTemplateLoading ? (
+                    <div className="flex items-center justify-center py-10 gap-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-cyan-400 border-r-2" />
+                      <span className="text-slate-500">Loading email template...</span>
+                    </div>
+                  ) : !dispatchTemplate ? (
+                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-[11px] text-amber-200/80 leading-relaxed">
+                      No saved completion email template found in Email Settings. Emails will fall back to the default
+                      completion template with the student&apos;s real data.
+                    </div>
+                  ) : dispatchTemplate.is_enabled === false ? (
+                    <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-[11px] text-red-200/80 leading-relaxed">
+                      The completion email is <strong>disabled</strong> in Email Settings. Enable it before dispatching.
+                    </div>
+                  ) : null}
+
+                  {/* Attachment toggles */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 space-y-2">
+                    <p className="text-slate-400 font-semibold text-[11px] uppercase tracking-wide">Attachments (optional)</p>
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={dispatchAttachCert}
+                        onChange={(e) => setDispatchAttachCert(e.target.checked)}
+                        className="accent-cyan-500 h-4 w-4"
+                      />
+                      <span className="text-slate-200">
+                        <FileText size={12} className="inline mr-1 text-cyan-400" />
+                        Certificate PDF
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={dispatchAttachLor}
+                        onChange={(e) => setDispatchAttachLor(e.target.checked)}
+                        className="accent-cyan-500 h-4 w-4"
+                      />
+                      <span className="text-slate-200">
+                        <FileText size={12} className="inline mr-1 text-brand-orange" />
+                        Letter of Recommendation (LOR) PDF
+                      </span>
+                    </label>
+                    {dispatchAttachLor && dispatchCandidates().some((s) => !s.documents?.some((d: any) => d.document_type === 'recommendation')) && (
+                      <p className="text-[10px] text-amber-200/80">
+                        Some selected interns have no LOR generated yet — those will be sent without the LOR attachment. Use "Generate LOR" on the Completed tab first.
+                      </p>
+                    )}
+                  </div>
+
+                  {(() => {
+                    const stu = dispatchCandidates().find((s) => s.id === dispatchPreviewId) || dispatchCandidates()[0];
+                    if (!stu) return null;
+                    const subject = dispatchTemplate?.subject || 'Ujjwalit Technologies — Internship Completion Certificate';
+                    const body = dispatchTemplate?.body_html || '';
+                    return (
+                      <div className="space-y-2">
+                        <div className="border border-slate-800 rounded-lg overflow-auto">
+                          <div className="bg-slate-800/80 px-3 py-1.5 text-[10px] font-mono text-slate-400 border-b border-slate-700 flex items-center justify-between gap-2">
+                            <span className="truncate">To: {stu.application?.email}</span>
+                            <span className="truncate shrink-0">Subject: {fillEmailPlaceholders(subject, stu)}</span>
+                          </div>
+                          <div
+                            className="w-full min-h-48 bg-white p-4 text-sm"
+                            dangerouslySetInnerHTML={{
+                              __html: body
+                                ? fillEmailPlaceholders(body, stu)
+                                : `<div style="font-family:Arial;color:#334155"><h3 style="color:#0f172a">Program Completion Certificate</h3><p>Dear <strong>${stu.application?.full_name || 'Student'}</strong>,</p><p>Congratulations on completing your internship. Your certificate has been issued and registered.</p></div>`,
+                            }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                          Placeholders are filled with this student&apos;s real data. Emails include a "Verify Certificate" link plus any attachments you enable above.
+                          <PlaceholderGuide
+                            placeholders={[
+                              { key: '{{name}}', description: "This intern's full name" },
+                              { key: '{{track}}', description: 'Track name (e.g. Frontend Development)' },
+                              { key: '{{code}}', description: 'Program code (e.g. FE-010)' },
+                              { key: '{{certId}}', description: 'Certificate ID of the active certificate' },
+                              { key: '{{certificate}}', description: 'Full verification link (verify.ujjwalit.co.in/{certId})' },
+                              { key: '{{lor}}', description: 'Public URL of this intern\'s generated LOR PDF' },
+                            ]}
+                          />
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-900">
-              <Button size="sm" variant="ghost" onClick={() => { setShowLorModal(null); setLorBlurb({ performance: '', text: '' }); }} className="text-xs">
+              <Button size="sm" variant="ghost" onClick={() => setDispatchModal(false)} className="text-xs">
                 Cancel
               </Button>
-              <Button size="sm" onClick={() => handleGenerateRecommendation(showLorModal)} className="bg-brand-orange text-slate-950 font-bold hover:bg-brand-orange/90 text-xs">
-                Generate LOR PDF
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleTestDispatchEmail}
+                isLoading={dispatchTesting}
+                disabled={dispatchCandidates().length === 0 || dispatchTemplateLoading || (dispatchTemplate?.is_enabled === false)}
+                className="text-xs gap-1.5"
+              >
+                <Eye size={13} />
+                Send Test Email
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleBatchSendCompletionEmails}
+                disabled={dispatchCandidates().length === 0 || dispatchTemplateLoading || (dispatchTemplate?.is_enabled === false)}
+                className="bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 text-xs gap-1.5 disabled:opacity-40"
+              >
+                <Send size={13} />
+                Send {dispatchCandidates().length} Email{dispatchCandidates().length === 1 ? '' : 's'}
+                {dispatchAttachCert || dispatchAttachLor
+                  ? ` (with ${[dispatchAttachCert ? 'certificate' : '', dispatchAttachLor ? 'LOR' : ''].filter(Boolean).join(' + ')})`
+                  : ' (no attachments)'}
               </Button>
             </div>
           </Card>
         </div>
       )}
 
-      {/* Certificate generation modal with template picker */}
       {genModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <Card variant="solid" className="max-w-lg w-full p-6 space-y-4 bg-slate-950 border border-slate-900 text-slate-100">
@@ -1323,7 +1627,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
               <Award size={16} className="text-brand-orange" />
               {genModal.mode === 'single'
                 ? (genModal.student.certificates?.some((c: any) => c.status === 'active')
-                  ? 'Regenerate Certificate'
+                  ? 'Update Certificate'
                   : 'Issue Certificate')
                 : `Generate Certificates (${selectedIds.length})`}
             </h3>
@@ -1399,8 +1703,8 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
               </div>
 
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] text-amber-200/80 leading-relaxed">
-                Generating assigns a fresh certificate ID and verification hash. Any previously issued certificate for these
-                intern(s) will be replaced — the old verification link stops working.
+                Regenerating keeps the same certificate ID and verification link (already-shared URLs keep working) and
+                re-renders the PDF with this intern&apos;s current details — name, program, attendance, and template.
               </div>
             </div>
 
@@ -1417,7 +1721,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
                 className="bg-brand-orange text-slate-950 font-bold hover:bg-brand-orange/90 text-xs"
               >
                 <Award size={13} className="mr-1" />
-                {genModal.mode === 'single' ? 'Generate Certificate' : `Generate ${selectedIds.length} Certificate(s)`}
+                {genModal.mode === 'single' ? 'Issue Certificate' : `Generate ${selectedIds.length} Certificate(s)`}
               </Button>
             </div>
           </Card>

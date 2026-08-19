@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
       qrUrl: 'https://careers.ujjwalit.co.in',
       performanceSummary: performanceSummary || '',
       recommendationText: recommendationText || '',
+      documentType,
     });
 
     const fileName = `${studentId}/${documentType}.pdf`;

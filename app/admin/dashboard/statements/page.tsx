@@ -176,10 +176,13 @@ export default function StatementsManagementPage() {
     const [a, b] = [sorted[idx], sorted[swapIdx]];
     const supabase = createClient();
     try {
-      const { error } = await supabase.from('achievement_statements').upsert([
-        { id: a.id, display_order: b.display_order, updated_at: new Date().toISOString() },
-        { id: b.id, display_order: a.display_order, updated_at: new Date().toISOString() },
-      ]);
+      const { error } = await supabase.from('achievement_statements').upsert(
+        [
+          { id: a.id, display_order: b.display_order },
+          { id: b.id, display_order: a.display_order },
+        ],
+        { onConflict: 'id' }
+      );
       if (error) throw error;
       fetchStatements();
     } catch (err: any) {

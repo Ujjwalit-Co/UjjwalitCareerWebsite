@@ -1,9 +1,30 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import { ToastProvider } from '@/components/ui/toast-provider';
+import CursorTrail from '@/components/verify/CursorTrail';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: {
+    default: 'Ujjwalit Registry — Secure Certificate Verification',
+    template: '%s',
+  },
+  description: 'Verify Ujjwalit Technologies certificates and student credentials instantly. Authentic, tamper-proof credential verification for Ujjwalit Developers Program.',
+  openGraph: {
+    siteName: 'Ujjwalit Registry',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
 export default function VerifyLayout({
   children,
@@ -35,6 +56,7 @@ export default function VerifyLayout({
         Ujjwalit Technologies Registry Verification
       </footer>
       <ToastProvider />
+      <CursorTrail />
     </div>
   );
 }

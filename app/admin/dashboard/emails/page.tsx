@@ -15,6 +15,8 @@ const PLACEHOLDER_DESCRIPTIONS: Record<string, string> = {
   '{{track}}': 'Program / track name',
   '{{code}}': 'Student code (e.g. STU-2026-001)',
   '{{certId}}': 'Certificate ID (e.g. UJ-AI-2026-001)',
+  '{{certificate}}': 'Verification link (https://verify.ujjwalit.co.in/{certId})',
+  '{{lor}}': 'Public URL of the student\'s generated LOR PDF',
 };
 
 const guideFor = (keys: string[]) => keys.map((k) => ({ key: k, description: PLACEHOLDER_DESCRIPTIONS[k] || 'Dynamic value' }));
@@ -36,13 +38,13 @@ const EMAIL_TYPES = [
     key: 'completion',
     label: 'Completion Certificate Dispatch',
     description: 'Sent when an admin clicks "Dispatch Email" on a completed intern with a generated certificate.',
-    placeholders: ['{{name}}', '{{track}}', '{{certId}}'],
+    placeholders: ['{{name}}', '{{track}}', '{{certId}}', '{{certificate}}', '{{lor}}'],
   },
   {
     key: 'recommendation',
     label: 'Recommendation Letter (LOR)',
     description: 'Sent when an admin generates and dispatches a Letter of Recommendation.',
-    placeholders: ['{{name}}', '{{track}}'],
+    placeholders: ['{{name}}', '{{track}}', '{{lor}}'],
   },
 ];
 
@@ -60,7 +62,9 @@ function fillPlaceholders(text: string, key: string) {
     .replaceAll('{{name}}', d?.name || 'Priyansh Sharma')
     .replaceAll('{{track}}', d?.track || 'Full Stack + AI Internship')
     .replaceAll('{{code}}', d?.code || 'STU-2026-001')
-    .replaceAll('{{certId}}', d?.certId || 'UJ-AI-2026-001');
+    .replaceAll('{{certId}}', d?.certId || 'UJ-AI-2026-001')
+    .replaceAll('{{certificate}}', `https://verify.ujjwalit.co.in/${d?.certId || 'UJ-AI-2026-001'}`)
+    .replaceAll('{{lor}}', `https://verify.ujjwalit.co.in/lor/${d?.code || 'STU-2026-001'}`);
 }
 
 export default function EmailSettingsPage() {
@@ -109,7 +113,8 @@ export default function EmailSettingsPage() {
       }, { onConflict: 'template_key' });
 
     if (error) {
-      toast.error('Failed to save template');
+      console.error('Save template error:', error);
+      toast.error(`Failed to save template: ${error.message} (${error.code})`);
     } else {
       toast.success(`"${key}" email template saved`);
     }

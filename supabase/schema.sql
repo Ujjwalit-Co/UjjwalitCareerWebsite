@@ -223,6 +223,12 @@ CREATE POLICY "Admins can manage documents" ON documents FOR ALL TO authenticate
 CREATE POLICY "Anyone can verify certificates" ON certificates FOR SELECT TO anon, authenticated USING (status = 'active');
 CREATE POLICY "Admins can manage certificates" ON certificates FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Admins can manage templates" ON certificate_templates FOR ALL TO authenticated USING (true) WITH CHECK (true);
+ALTER TABLE achievement_statements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_achievement_statements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can manage achievement statements" ON achievement_statements FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Anyone can view active achievement statements" ON achievement_statements FOR SELECT TO anon, authenticated USING (is_active = true);
+CREATE POLICY "Admins can manage student achievement statements" ON student_achievement_statements FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Anyone can view student achievement statements" ON student_achievement_statements FOR SELECT TO anon, authenticated USING (true);
 
 INSERT INTO storage.buckets (id, name, public) VALUES ('resumes', 'resumes', false) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('certificates', 'certificates', true) ON CONFLICT (id) DO NOTHING;

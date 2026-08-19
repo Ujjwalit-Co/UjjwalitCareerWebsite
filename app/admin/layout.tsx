@@ -10,6 +10,7 @@ import {
   FolderKanban,
   BriefcaseBusiness,
   Users,
+  BarChart3,
   LogOut,
   Menu,
   X,
@@ -78,6 +79,7 @@ export default function AdminLayout({
     { name: 'Programmes', href: '/admin/dashboard/programmes', icon: <FolderKanban size={18} /> },
     { name: 'Opportunities', href: '/admin/dashboard/opportunities', icon: <BriefcaseBusiness size={18} /> },
     { name: 'Students', href: '/admin/dashboard/students', icon: <Users size={18} /> },
+    { name: 'Analytics', href: '/admin/dashboard/analytics', icon: <BarChart3 size={18} /> },
   ];
 
   const configNav: SidebarItem[] = [

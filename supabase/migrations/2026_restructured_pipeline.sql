@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS email_templates (
     subject TEXT NOT NULL,
     body_html TEXT NOT NULL,
     description TEXT,
+    is_enabled BOOLEAN NOT NULL DEFAULT true,
     is_default BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
