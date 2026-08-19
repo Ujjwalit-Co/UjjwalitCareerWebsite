@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     await requireAdmin();
     const supabase = createAdminClient();
 
-    const { studentIds, type, attachCertificate, attachLor } = await request.json();
+    const { studentIds, type, attachCertificate, attachLor, force } = await request.json();
 
     if (!Array.isArray(studentIds) || studentIds.length === 0 || !type) {
       return NextResponse.json({ error: 'Student IDs array and email type are required' }, { status: 400 });
@@ -26,9 +26,17 @@ export async function POST(request: NextRequest) {
         .in('status', ['pending', 'sending', 'sent'])
         .maybeSingle();
 
-      if (existingJob) {
+      if (existingJob && !force) {
         skipped++;
         continue;
+      }
+
+      // When force-resending, remove any old job for this student + type
+      if (existingJob && force) {
+        await supabase
+          .from('email_queue')
+          .delete()
+          .eq('id', existingJob.id);
       }
 
       // Enqueue the new email job

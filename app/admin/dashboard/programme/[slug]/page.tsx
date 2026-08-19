@@ -81,6 +81,8 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
   const [dispatchTemplateLoading, setDispatchTemplateLoading] = useState(false);
   const [dispatchAttachCert, setDispatchAttachCert] = useState(true);
   const [dispatchAttachLor, setDispatchAttachLor] = useState(true);
+  const [dispatchForce, setDispatchForce] = useState(false);
+  const [dispatchEmailType, setDispatchEmailType] = useState<'acceptance' | 'onboarding' | 'completion' | 'recommendation'>('completion');
   const [dispatchTesting, setDispatchTesting] = useState(false);
 
   const loadPipelineData = async () => {
@@ -497,7 +499,9 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
     return (text || '').replace(/{{[a-zA-Z_]+}}/g, (match) => repl[match] ?? match);
   };
 
-  const openDispatchModal = async (studentId?: string) => {
+  const openDispatchModal = async (studentId?: string, emailType?: 'acceptance' | 'onboarding' | 'completion' | 'recommendation') => {
+    const type = emailType || 'completion';
+    setDispatchEmailType(type);
     if (studentId) {
       setDispatchSingleId(studentId);
       const stu = completedStus.find((s) => s.id === studentId);
@@ -519,6 +523,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
     setDispatchPreviewId(previewId);
     setDispatchAttachCert(true);
     setDispatchAttachLor(true);
+    setDispatchForce(false);
     setDispatchTemplateLoading(true);
     setDispatchTemplate(null);
     try {
@@ -526,7 +531,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
       const { data } = await supabase
         .from('email_templates')
         .select('subject, body_html, is_enabled')
-        .eq('template_key', 'completion')
+        .eq('template_key', type)
         .maybeSingle();
       setDispatchTemplate(data || null);
     } catch (err) {
@@ -547,7 +552,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'completion',
+          type: dispatchEmailType,
           studentId: stu.id,
           subject: dispatchTemplate?.subject,
           body_html: dispatchTemplate?.body_html,
@@ -578,7 +583,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
       return;
     }
 
-    let toastId = toast.loading('Enqueuing completion emails...');
+    let toastId = toast.loading(`Enqueuing ${dispatchEmailType} emails...`);
 
     try {
       // Enqueue jobs
@@ -587,9 +592,10 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           studentIds,
-          type: 'completion',
+          type: dispatchEmailType,
           attachCertificate: dispatchAttachCert,
           attachLor: dispatchAttachLor,
+          force: dispatchForce,
         }),
       });
       const enqueueData = await enqueueRes.json();
@@ -1469,7 +1475,7 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
             <div className="flex items-start justify-between gap-4 border-b border-slate-900 pb-2">
               <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <Mail size={16} className="text-cyan-400" />
-                Dispatch Completion Emails ({dispatchCandidates().length})
+                Dispatch Emails ({dispatchCandidates().length})
               </h3>
               <button onClick={() => setDispatchModal(false)} className="text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">
                 <X size={16} />
@@ -1478,9 +1484,44 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
 
             <div className="space-y-3 text-xs">
               {dispatchCandidates().length === 0 ? (
-                <p className="text-slate-400">No selected interns have an active certificate. Issue certificates first.</p>
+                <p className="text-slate-400">No selected interns are eligible for this email type.</p>
               ) : (
                 <>
+                  {/* Email type selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-400 font-semibold block">Email type</label>
+                    <select
+                      value={dispatchEmailType}
+                      onChange={(e) => {
+                        const newType = e.target.value as typeof dispatchEmailType;
+                        setDispatchEmailType(newType);
+                        setDispatchTemplateLoading(true);
+                        setDispatchTemplate(null);
+                        const supabase = createClient();
+                        (async () => {
+                          try {
+                            const { data } = await supabase
+                              .from('email_templates')
+                              .select('subject, body_html, is_enabled')
+                              .eq('template_key', newType)
+                              .maybeSingle();
+                            setDispatchTemplate(data || null);
+                          } catch {
+                            setDispatchTemplate(null);
+                          } finally {
+                            setDispatchTemplateLoading(false);
+                          }
+                        })();
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 cursor-pointer"
+                    >
+                      <option value="acceptance">Acceptance</option>
+                      <option value="onboarding">Onboarding</option>
+                      <option value="completion">Completion</option>
+                      <option value="recommendation">Recommendation</option>
+                    </select>
+                  </div>
+
                   {/* Recipient selector */}
                   <div className="space-y-1.5">
                     <label className="text-slate-400 font-semibold block">Preview recipient</label>
@@ -1504,12 +1545,12 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
                     </div>
                   ) : !dispatchTemplate ? (
                     <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-[11px] text-amber-200/80 leading-relaxed">
-                      No saved completion email template found in Email Settings. Emails will fall back to the default
-                      completion template with the student&apos;s real data.
+                        No saved {dispatchEmailType} email template found in Email Settings. Emails will fall back to the default
+                        {dispatchEmailType} template with the student&apos;s real data.
                     </div>
                   ) : dispatchTemplate.is_enabled === false ? (
                     <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-[11px] text-red-200/80 leading-relaxed">
-                      The completion email is <strong>disabled</strong> in Email Settings. Enable it before dispatching.
+                      The {dispatchEmailType} email is <strong>disabled</strong> in Email Settings. Enable it before dispatching.
                     </div>
                   ) : null}
 
@@ -1545,6 +1586,18 @@ export default function PipelineWorkspacePage({ params }: PipelinePageProps) {
                         Some selected interns have no LOR generated yet — those will be sent without the LOR attachment. Use "Generate LOR" on the Completed tab first.
                       </p>
                     )}
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={dispatchForce}
+                        onChange={(e) => setDispatchForce(e.target.checked)}
+                        className="accent-amber-500 h-4 w-4"
+                      />
+                      <span className="text-slate-200">
+                        <RefreshCw size={12} className="inline mr-1 text-amber-500" />
+                        Force resend (override previous sends)
+                      </span>
+                    </label>
                   </div>
 
                   {(() => {
